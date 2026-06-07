@@ -12,7 +12,7 @@ using PRM.Server.Data;
 namespace PRM.Server.Migrations
 {
     [DbContext(typeof(PrmDbContext))]
-    [Migration("20260607173629_InitialCreate")]
+    [Migration("20260607183617_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -841,19 +841,19 @@ namespace PRM.Server.Migrations
                     b.HasOne("PRM.Server.Models.Entities.User", "AllocatedByManager")
                         .WithMany()
                         .HasForeignKey("AllocatedByManagerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("PRM.Server.Models.Entities.Employee", "Employee")
                         .WithMany("ProjectAllocations")
                         .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("PRM.Server.Models.Entities.Project", "Project")
                         .WithMany("ProjectAllocations")
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("AllocatedByManager");
@@ -899,7 +899,7 @@ namespace PRM.Server.Migrations
                     b.HasOne("PRM.Server.Models.Entities.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("PRM.Server.Models.Entities.Timesheet", "Timesheet")

@@ -1,20 +1,29 @@
 ﻿using Microsoft.Extensions.Configuration;
+using PRM.Client;
+using PRM.Client.Helpers;
+using PRM.Client.HttpClients;
+using PRM.Client.Screens;
+using PRM.Client.Screens.Admin;
+using PRM.Client.Screens.Employee;
+using PRM.Client.Screens.Manager;
 
 var configuration = new ConfigurationBuilder()
 	.SetBasePath(AppContext.BaseDirectory)
 	.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
 	.Build();
 
-Console.WriteLine("=== PRM Tool — Project & Resource Management ===");
-Console.WriteLine($"Server: {configuration["ServerBaseUrl"]}");
-Console.WriteLine();
-Console.WriteLine("PRM Client (placeholder menu)");
-Console.WriteLine("  1. Login (Phase 1)");
-Console.WriteLine("  0. Exit");
-Console.Write("Select option: ");
+var serverBaseUrl = configuration["ServerBaseUrl"] ?? "https://localhost:5001";
+var restClient = new RestClient(serverBaseUrl);
+var authClient = new AuthClient(restClient);
 
-var input = Console.ReadLine();
-if (input == "0")
-{
-	Console.WriteLine("Goodbye.");
-}
+var app = new AppStarter(
+	serverBaseUrl,
+	new LoginScreen(authClient),
+	new ChangePasswordScreen(authClient),
+	new AdminMenuScreen(),
+	new ManagerMenuScreen(),
+	new EmployeeMenuScreen());
+
+await app.RunAsync();
+
+Console.WriteLine("Goodbye.");

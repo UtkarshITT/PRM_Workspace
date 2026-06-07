@@ -170,9 +170,9 @@ public class PrmDbContext : DbContext
 			entity.Property(e => e.AllocatedByManagerId).HasColumnName("allocated_by_manager_id");
 			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
 			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-			entity.HasOne(e => e.Employee).WithMany(e => e.ProjectAllocations).HasForeignKey(e => e.EmployeeId);
-			entity.HasOne(e => e.Project).WithMany(p => p.ProjectAllocations).HasForeignKey(e => e.ProjectId);
-			entity.HasOne(e => e.AllocatedByManager).WithMany().HasForeignKey(e => e.AllocatedByManagerId);
+			entity.HasOne(e => e.Employee).WithMany(e => e.ProjectAllocations).HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+			entity.HasOne(e => e.Project).WithMany(p => p.ProjectAllocations).HasForeignKey(e => e.ProjectId).OnDelete(DeleteBehavior.Restrict);
+			entity.HasOne(e => e.AllocatedByManager).WithMany().HasForeignKey(e => e.AllocatedByManagerId).OnDelete(DeleteBehavior.Restrict);
 		});
 	}
 
@@ -207,8 +207,8 @@ public class PrmDbContext : DbContext
 			entity.Property(e => e.WorkDate).HasColumnName("work_date").HasColumnType("date");
 			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
 			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-			entity.HasOne(e => e.Timesheet).WithMany(t => t.LineItems).HasForeignKey(e => e.TimesheetId);
-			entity.HasOne(e => e.Project).WithMany().HasForeignKey(e => e.ProjectId);
+			entity.HasOne(e => e.Timesheet).WithMany(t => t.LineItems).HasForeignKey(e => e.TimesheetId).OnDelete(DeleteBehavior.Cascade);
+			entity.HasOne(e => e.Project).WithMany().HasForeignKey(e => e.ProjectId).OnDelete(DeleteBehavior.Restrict);
 		});
 	}
 

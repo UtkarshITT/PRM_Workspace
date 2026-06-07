@@ -294,19 +294,19 @@ namespace PRM.Server.Migrations
                         column: x => x.employee_id,
                         principalTable: "EMPLOYEES",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_PROJECT_ALLOCATIONS_PROJECTS_project_id",
                         column: x => x.project_id,
                         principalTable: "PROJECTS",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_PROJECT_ALLOCATIONS_USERS_allocated_by_manager_id",
                         column: x => x.allocated_by_manager_id,
                         principalTable: "USERS",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -359,7 +359,7 @@ namespace PRM.Server.Migrations
                         column: x => x.project_id,
                         principalTable: "PROJECTS",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_TIMESHEET_LINE_ITEMS_TIMESHEETS_timesheet_id",
                         column: x => x.timesheet_id,

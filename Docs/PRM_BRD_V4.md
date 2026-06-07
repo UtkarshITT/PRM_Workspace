@@ -80,7 +80,9 @@ The Admin is the **system operator** — typically an HR or operations team memb
 
 **Access:** Admin menu only. Cannot allocate resources or view timesheets.
 
-> **First Admin Bootstrap:** The very first Admin account cannot be created through the application (since there is no Admin yet to create it). It is inserted directly into the database using a one-time seed/setup script included with the project. Default credentials (`admin` / `Admin@1234`) must be changed on first login. All subsequent Admin accounts are created by an existing Admin from within the application.
+> **First Admin Bootstrap:** The very first Admin account cannot be created through the application (since there is no Admin yet to create it). It is inserted at **server startup** by `DatabaseSeeder.cs` (BCrypt password hash computed at runtime). Default credentials (`admin` / `Admin@1234`) must be changed on first login. All subsequent Admin accounts are created by an existing Admin from within the application.
+
+> **Reference data bootstrap (separate from admin):** The fixed **activity tag** master list (11 tags, Screen 5.1) and default **system configuration** rows (4 predefined keys, Screen 3.5) are inserted by the EF Core migration **`SeedReferenceData`** — not by the runtime seeder. Admin later **updates config values** only (provider, API key, scheduler interval, max weekly hours); config keys are not free-form.
 
 ---
 
@@ -653,6 +655,8 @@ Current Settings:
 
 Enter option: _
 ```
+
+> **Implementation note:** The four settings above map to predefined rows in `SYSTEM_CONFIGURATIONS` (`llm_provider`, `llm_api_key`, `scheduler_interval_hours`, `max_weekly_hours`) seeded by migration `SeedReferenceData`. Admin updates **values** only — not arbitrary config keys. Default `llm_api_key` is empty until Admin enters a key (Phase 9) or dev uses env `PRM_LLM_API_KEY` for local AI testing.
 
 ---
 

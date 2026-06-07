@@ -29,26 +29,20 @@ Diagrams: [Docs/Diagrams/Diagram_per_v4/](Docs/Diagrams/Diagram_per_v4/)
 
 ## Quick Start
 
-> Setup commands will be added after Phase 0 completes.
-
 ```bash
 dotnet build PRM_Workspace.sln
-dotnet ef database update --project Server/PRM.Server.csproj
 dotnet run --project Server/PRM.Server.csproj
 dotnet run --project Client/PRM.Client.csproj
-dotnet test Tests/PRM.Tests.csproj
 ```
 
-**Folder layout:** `Client/` = PRM.Client, `Server/` = PRM.Server, `Tests/` = PRM.Tests (csproj files live directly in each folder).
-
-Default admin (seeded): `admin` / `Admin@1234` (forced password change on first login).
+In a second terminal, run the client after the server is listening on `https://localhost:5001`.
 
 ## Development Progress
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 0 | Solution, EF schema, seed data | In Progress |
-| 1 | Auth, JWT, navigation shell | Not Started |
+| 0 | Solution, EF schema, seed data | Done |
+| 1 | Auth, JWT, navigation shell | Done |
 | 2 | Admin users & employees | Not Started |
 | 3 | Admin projects & milestones | Not Started |
 | 4 | Manager dashboard & allocations | Not Started |
@@ -63,18 +57,17 @@ Default admin (seeded): `admin` / `Admin@1234` (forced password change on first 
 
 ### What Works Now
 
-- `PRM_Workspace.sln` with `Client/`, `Server/`, `Tests/` projects targeting **.NET 10**
-- EF Core schema + `InitialCreate` migration (milestone `due_date` as SQL DATE)
-- Database seed: admin user, 11 activity tags, 4 system config keys
-- Server health endpoint: `GET /health`
-- Client placeholder menu
+- `PRM_Workspace.sln` with `Client/`, `Server/`, `Tests/` targeting **.NET 10**
+- EF Core schema + migrations (`InitialCreate`, `SeedReferenceData`), admin bootstrap via `DatabaseSeeder`
+- **Phase 1:** JWT login, forced password change, Admin/Manager/Employee menu shells
+- Default admin: `admin` / `Admin@1234` (change password on first login)
 
 ## Documentation
 
 | Document | Purpose |
 |----------|---------|
 | [Docs/PRM_BRD_V4.md](Docs/PRM_BRD_V4.md) | Business requirements |
-| [Docs/PRM_Developer_Guide_V3.md](Docs/PRM_Developer_Guide_V3.md) | Implementation guide |
+| [Docs/Developer_Guide_V2 1.md](Docs/Developer_Guide_V2%201.md) | Implementation guide (schema, seed, API) |
 | [Docs/Requirements_Snapshot.md](Docs/Requirements_Snapshot.md) | Quick reference |
 | [Docs/prm_phase_development_roadmap_6163a1a3.plan.md](Docs/prm_phase_development_roadmap_6163a1a3.plan.md) | Phase roadmap |
 
