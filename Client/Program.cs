@@ -15,12 +15,15 @@ var configuration = new ConfigurationBuilder()
 var serverBaseUrl = configuration["ServerBaseUrl"] ?? "https://localhost:5001";
 var restClient = new RestClient(serverBaseUrl);
 var authClient = new AuthClient(restClient);
+var adminClient = new AdminClient(restClient);
 
 var app = new AppStarter(
 	serverBaseUrl,
 	new LoginScreen(authClient),
 	new ChangePasswordScreen(authClient),
-	new AdminMenuScreen(),
+	new AdminMenuScreen(
+		new ManageUsersScreen(adminClient),
+		new ManageEmployeesScreen(adminClient)),
 	new ManagerMenuScreen(),
 	new EmployeeMenuScreen());
 

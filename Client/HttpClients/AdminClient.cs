@@ -1,0 +1,64 @@
+using PRM.Client.Models;
+using PRM.Client.Models.Admin;
+
+namespace PRM.Client.HttpClients;
+
+public class AdminClient
+{
+	private readonly RestClient _restClient;
+
+	public AdminClient(RestClient restClient)
+	{
+		_restClient = restClient;
+	}
+
+	public Task<ApiResponse<UserCreatedResponse>> CreateUserAsync(CreateUserRequest request) =>
+		_restClient.PostAsync<UserCreatedResponse>("/api/users", request, requireAuth: true);
+
+	public Task<ApiResponse<List<UserListItem>>> GetUsersAsync() =>
+		_restClient.GetAsync<List<UserListItem>>("/api/users", requireAuth: true);
+
+	public Task<ApiResponse<object>> ResetPasswordAsync(long userId, ResetPasswordRequest request) =>
+		_restClient.PutAsync<object>($"/api/users/{userId}/reset-password", request, requireAuth: true);
+
+	public Task<ApiResponse<object>> DeactivateUserAsync(long userId) =>
+		_restClient.PutAsync<object>($"/api/users/{userId}/deactivate", new { }, requireAuth: true);
+
+	public Task<ApiResponse<object>> ReactivateUserAsync(long userId) =>
+		_restClient.PutAsync<object>($"/api/users/{userId}/reactivate", new { }, requireAuth: true);
+
+	public Task<ApiResponse<List<EmployeeListItem>>> GetEmployeesAsync(string? status = null, string? department = null)
+	{
+		var query = new List<string>();
+		if (!string.IsNullOrWhiteSpace(status))
+		{
+			query.Add($"status={Uri.EscapeDataString(status)}");
+		}
+
+		if (!string.IsNullOrWhiteSpace(department))
+		{
+			query.Add($"department={Uri.EscapeDataString(department)}");
+		}
+
+		var path = query.Count == 0
+			? "/api/employees"
+			: $"/api/employees?{string.Join("&", query)}";
+
+		return _restClient.GetAsync<List<EmployeeListItem>>(path, requireAuth: true);
+	}
+
+	public Task<ApiResponse<object>> UpdateEmployeeAsync(long employeeId, UpdateEmployeeRequest request) =>
+		_restClient.PutAsync<object>($"/api/employees/{employeeId}", request, requireAuth: true);
+
+	public Task<ApiResponse<object>> DeactivateEmployeeAsync(long employeeId) =>
+		_restClient.PutAsync<object>($"/api/employees/{employeeId}/deactivate", new { }, requireAuth: true);
+
+	public Task<ApiResponse<List<EmployeeSkillItem>>> AddSkillAsync(long employeeId, AddSkillRequest request) =>
+		_restClient.PostAsync<List<EmployeeSkillItem>>($"/api/employees/{employeeId}/skills", request, requireAuth: true);
+
+	public Task<ApiResponse<object>> RemoveSkillAsync(long employeeId, long skillId) =>
+		_restClient.DeleteAsync<object>($"/api/employees/{employeeId}/skills/{skillId}", requireAuth: true);
+
+	public Task<ApiResponse<object>> AssignManagerAsync(long employeeId, AssignManagerRequest request) =>
+		_restClient.PutAsync<object>($"/api/employees/{employeeId}/manager", request, requireAuth: true);
+}

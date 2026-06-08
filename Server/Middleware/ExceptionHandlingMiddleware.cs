@@ -28,6 +28,14 @@ public class ExceptionHandlingMiddleware
 		{
 			await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, ex.Message);
 		}
+		catch (Exceptions.NotFoundException ex)
+		{
+			await WriteErrorAsync(context, StatusCodes.Status404NotFound, ex.Message);
+		}
+		catch (Exceptions.ConflictException ex)
+		{
+			await WriteErrorAsync(context, StatusCodes.Status409Conflict, ex.Message);
+		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Unhandled exception");

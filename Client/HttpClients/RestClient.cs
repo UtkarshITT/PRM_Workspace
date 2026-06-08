@@ -22,6 +22,9 @@ public class RestClient
 		_httpClient = new HttpClient(handler);
 	}
 
+	public Task<ApiResponse<T>> GetAsync<T>(string path, bool requireAuth = false) =>
+		SendAsync<T>(() => CreateRequest(HttpMethod.Get, path, requireAuth));
+
 	public async Task<ApiResponse<T>> PostAsync<T>(string path, object body, bool requireAuth = false)
 	{
 		return await SendAsync<T>(() =>
@@ -31,6 +34,19 @@ public class RestClient
 			return request;
 		});
 	}
+
+	public async Task<ApiResponse<T>> PutAsync<T>(string path, object body, bool requireAuth = false)
+	{
+		return await SendAsync<T>(() =>
+		{
+			var request = CreateRequest(HttpMethod.Put, path, requireAuth);
+			request.Content = JsonContent.Create(body);
+			return request;
+		});
+	}
+
+	public Task<ApiResponse<T>> DeleteAsync<T>(string path, bool requireAuth = false) =>
+		SendAsync<T>(() => CreateRequest(HttpMethod.Delete, path, requireAuth));
 
 	private async Task<ApiResponse<T>> SendAsync<T>(Func<HttpRequestMessage> createRequest)
 	{

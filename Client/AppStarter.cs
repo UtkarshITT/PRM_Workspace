@@ -80,7 +80,7 @@ public class AppStarter
 		switch (SessionStore.Role)
 		{
 			case "ADMIN":
-				_adminMenuScreen.Show();
+				_adminMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
 			case "MANAGER":
 				_managerMenuScreen.Show();

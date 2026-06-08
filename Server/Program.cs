@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using FluentValidation;
 using PRM.Server.Configuration;
 using PRM.Server.Data;
 using PRM.Server.Middleware;
@@ -10,6 +11,7 @@ using PRM.Server.Repositories.Interfaces;
 using PRM.Server.Seed;
 using PRM.Server.Services;
 using PRM.Server.Services.Interfaces;
+using PRM.Server.Validators;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,10 +49,16 @@ builder.Services.Configure<JwtSettings>(options =>
 builder.Services.AddDbContext<PrmDbContext>(options =>
 	options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddValidatorsFromAssemblyContaining<CreateUserValidator>();
+
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+builder.Services.AddScoped<ISkillRepository, SkillRepository>();
+builder.Services.AddScoped<IAllocationRepository, AllocationRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
