@@ -9,7 +9,6 @@ using PRM.Server.Services.Interfaces;
 
 namespace PRM.Server.Controllers;
 
-[Authorize(Roles = "ADMIN")]
 [ApiController]
 [Route("api/employees")]
 public class EmployeeController : ControllerBase
@@ -31,6 +30,23 @@ public class EmployeeController : ControllerBase
 		_assignManagerValidator = assignManagerValidator;
 	}
 
+	[Authorize(Roles = "MANAGER")]
+	[HttpGet("my-team")]
+	public async Task<ActionResult<ApiResponse<TeamDashboardDto>>> GetMyTeam(CancellationToken cancellationToken)
+	{
+		var dashboard = await _employeeService.GetTeamDashboardAsync(GetUserId(), cancellationToken);
+		return Ok(ApiResponse<TeamDashboardDto>.Ok(dashboard, "Team dashboard retrieved."));
+	}
+
+	[Authorize(Roles = "MANAGER")]
+	[HttpGet("{id:long}")]
+	public async Task<ActionResult<ApiResponse<TeamMemberDetailDto>>> GetTeamMember(long id, CancellationToken cancellationToken)
+	{
+		var detail = await _employeeService.GetTeamMemberDetailAsync(id, GetUserId(), cancellationToken);
+		return Ok(ApiResponse<TeamMemberDetailDto>.Ok(detail, "Employee detail retrieved."));
+	}
+
+	[Authorize(Roles = "ADMIN")]
 	[HttpGet]
 	public async Task<ActionResult<ApiResponse<IReadOnlyList<EmployeeListItemDto>>>> GetAllEmployees(
 		[FromQuery] string? status,
@@ -41,6 +57,7 @@ public class EmployeeController : ControllerBase
 		return Ok(ApiResponse<IReadOnlyList<EmployeeListItemDto>>.Ok(employees, "Employees retrieved."));
 	}
 
+	[Authorize(Roles = "ADMIN")]
 	[HttpPut("{id:long}")]
 	public async Task<ActionResult<ApiResponse<object>>> UpdateEmployee(
 		long id,
@@ -52,6 +69,7 @@ public class EmployeeController : ControllerBase
 		return Ok(ApiResponse<object>.Ok(new { }, "Employee updated."));
 	}
 
+	[Authorize(Roles = "ADMIN")]
 	[HttpPut("{id:long}/deactivate")]
 	public async Task<ActionResult<ApiResponse<object>>> DeactivateEmployee(long id, CancellationToken cancellationToken)
 	{
@@ -59,6 +77,7 @@ public class EmployeeController : ControllerBase
 		return Ok(ApiResponse<object>.Ok(new { }, "Employee deactivated."));
 	}
 
+	[Authorize(Roles = "ADMIN")]
 	[HttpPost("{id:long}/skills")]
 	public async Task<ActionResult<ApiResponse<IReadOnlyList<EmployeeSkillDto>>>> AddSkill(
 		long id,
@@ -70,6 +89,7 @@ public class EmployeeController : ControllerBase
 		return Ok(ApiResponse<IReadOnlyList<EmployeeSkillDto>>.Ok(skills, "Skill added."));
 	}
 
+	[Authorize(Roles = "ADMIN")]
 	[HttpDelete("{id:long}/skills/{skillId:long}")]
 	public async Task<ActionResult<ApiResponse<object>>> RemoveSkill(
 		long id,
@@ -80,6 +100,7 @@ public class EmployeeController : ControllerBase
 		return Ok(ApiResponse<object>.Ok(new { }, "Skill removed."));
 	}
 
+	[Authorize(Roles = "ADMIN")]
 	[HttpPut("{id:long}/manager")]
 	public async Task<ActionResult<ApiResponse<object>>> AssignManager(
 		long id,

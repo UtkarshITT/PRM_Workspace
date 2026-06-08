@@ -61,4 +61,45 @@ public class AdminClient
 
 	public Task<ApiResponse<object>> AssignManagerAsync(long employeeId, AssignManagerRequest request) =>
 		_restClient.PutAsync<object>($"/api/employees/{employeeId}/manager", request, requireAuth: true);
+
+	public Task<ApiResponse<ProjectCreatedResponse>> CreateProjectAsync(CreateProjectRequest request) =>
+		_restClient.PostAsync<ProjectCreatedResponse>("/api/projects", request, requireAuth: true);
+
+	public Task<ApiResponse<List<ProjectListItem>>> GetProjectsAsync() =>
+		_restClient.GetAsync<List<ProjectListItem>>("/api/projects", requireAuth: true);
+
+	public Task<ApiResponse<object>> UpdateProjectAsync(long projectId, UpdateProjectRequest request) =>
+		_restClient.PutAsync<object>($"/api/projects/{projectId}", request, requireAuth: true);
+
+	public Task<ApiResponse<List<MilestoneListItem>>> GetMilestonesAsync(long projectId) =>
+		_restClient.GetAsync<List<MilestoneListItem>>($"/api/projects/{projectId}/milestones", requireAuth: true);
+
+	public Task<ApiResponse<MilestoneListItem>> AddMilestoneAsync(long projectId, CreateMilestoneRequest request) =>
+		_restClient.PostAsync<MilestoneListItem>($"/api/projects/{projectId}/milestones", request, requireAuth: true);
+
+	public Task<ApiResponse<object>> UpdateMilestoneStatusAsync(
+		long projectId,
+		long milestoneId,
+		UpdateMilestoneStatusRequest request) =>
+		_restClient.PutAsync<object>($"/api/projects/{projectId}/milestones/{milestoneId}", request, requireAuth: true);
+
+	public Task<ApiResponse<List<AllocationListItem>>> GetAllocationsAsync(long? employeeId = null, long? projectId = null)
+	{
+		var query = new List<string>();
+		if (employeeId.HasValue)
+		{
+			query.Add($"employeeId={employeeId.Value}");
+		}
+
+		if (projectId.HasValue)
+		{
+			query.Add($"projectId={projectId.Value}");
+		}
+
+		var path = query.Count == 0
+			? "/api/allocations"
+			: $"/api/allocations?{string.Join("&", query)}";
+
+		return _restClient.GetAsync<List<AllocationListItem>>(path, requireAuth: true);
+	}
 }

@@ -14,12 +14,54 @@ public class AllocationRepository : IAllocationRepository
 		_context = context;
 	}
 
+	public Task<ProjectAllocation?> GetByIdWithDetailsAsync(long allocationId, CancellationToken cancellationToken = default)
+	{
+		return _context.ProjectAllocations
+			.Include(allocation => allocation.Employee)
+			.ThenInclude(employee => employee.User)
+			.Include(allocation => allocation.Project)
+			.FirstOrDefaultAsync(allocation => allocation.Id == allocationId, cancellationToken);
+	}
+
 	public async Task<IReadOnlyList<ProjectAllocation>> GetActiveByEmployeeIdAsync(
 		long employeeId,
 		CancellationToken cancellationToken = default)
 	{
 		return await _context.ProjectAllocations
 			.Where(allocation => allocation.EmployeeId == employeeId && allocation.AllocationStatus == "ACTIVE")
+			.ToListAsync(cancellationToken);
+	}
+
+	public async Task<IReadOnlyList<ProjectAllocation>> GetAllAsync(
+		long? employeeId,
+		long? projectId,
+		string? status,
+		CancellationToken cancellationToken = default)
+	{
+		var query = _context.ProjectAllocations
+			.Include(allocation => allocation.Employee)
+			.ThenInclude(employee => employee.User)
+			.Include(allocation => allocation.Project)
+			.AsQueryable();
+
+		if (employeeId.HasValue)
+		{
+			query = query.Where(allocation => allocation.EmployeeId == employeeId.Value);
+		}
+
+		if (projectId.HasValue)
+		{
+			query = query.Where(allocation => allocation.ProjectId == projectId.Value);
+		}
+
+		if (!string.IsNullOrWhiteSpace(status))
+		{
+			query = query.Where(allocation => allocation.AllocationStatus == status);
+		}
+
+		return await query
+			.OrderBy(allocation => allocation.Employee.User.FullName)
+			.ThenBy(allocation => allocation.Project.ProjectName)
 			.ToListAsync(cancellationToken);
 	}
 }

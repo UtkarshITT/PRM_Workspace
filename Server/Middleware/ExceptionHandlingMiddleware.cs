@@ -24,6 +24,10 @@ public class ExceptionHandlingMiddleware
 		{
 			await WriteErrorAsync(context, StatusCodes.Status400BadRequest, ex.Message, ex.Details);
 		}
+		catch (Exceptions.OverAllocationException ex)
+		{
+			await WriteErrorAsync(context, StatusCodes.Status400BadRequest, ex.Message);
+		}
 		catch (Exceptions.UnauthorizedAppException ex)
 		{
 			await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, ex.Message);

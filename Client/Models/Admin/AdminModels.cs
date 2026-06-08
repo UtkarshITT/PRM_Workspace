@@ -71,3 +71,77 @@ public class AssignManagerRequest
 {
 	public long ManagerUserId { get; set; }
 }
+
+public class CreateProjectRequest
+{
+	public string ProjectName { get; set; } = string.Empty;
+	public string? Description { get; set; }
+	public string StartDate { get; set; } = string.Empty;
+	public string EndDate { get; set; } = string.Empty;
+	public string ProjectStatus { get; set; } = string.Empty;
+	public long ManagerUserId { get; set; }
+	public int TotalStoryPoints { get; set; }
+}
+
+public class UpdateProjectRequest
+{
+	public string ProjectName { get; set; } = string.Empty;
+	public string? Description { get; set; }
+	public string StartDate { get; set; } = string.Empty;
+	public string EndDate { get; set; } = string.Empty;
+	public string ProjectStatus { get; set; } = string.Empty;
+	public long ManagerUserId { get; set; }
+	public int TotalStoryPoints { get; set; }
+}
+
+public class ProjectListItem
+{
+	public long Id { get; set; }
+	public string ProjectCode { get; set; } = string.Empty;
+	public string ProjectName { get; set; } = string.Empty;
+	public string ManagerName { get; set; } = string.Empty;
+	public string EndDate { get; set; } = string.Empty;
+	public string ProjectStatus { get; set; } = string.Empty;
+	public int StoryPointsDone { get; set; }
+	public int TotalStoryPoints { get; set; }
+}
+
+public class ProjectCreatedResponse
+{
+	public long ProjectId { get; set; }
+	public string ProjectCode { get; set; } = string.Empty;
+}
+
+public class CreateMilestoneRequest
+{
+	public string MilestoneTitle { get; set; } = string.Empty;
+	public string DueDate { get; set; } = string.Empty;
+	public int StoryPoints { get; set; }
+	public short SortOrder { get; set; }
+}
+
+public class UpdateMilestoneStatusRequest
+{
+	public string MilestoneStatus { get; set; } = string.Empty;
+}
+
+public class MilestoneListItem
+{
+	public long Id { get; set; }
+	public short SortOrder { get; set; }
+	public string MilestoneTitle { get; set; } = string.Empty;
+	public string DueDate { get; set; } = string.Empty;
+	public int StoryPoints { get; set; }
+	public string MilestoneStatus { get; set; } = string.Empty;
+}
+
+public class AllocationListItem
+{
+	public long Id { get; set; }
+	public string EmployeeName { get; set; } = string.Empty;
+	public string ProjectName { get; set; } = string.Empty;
+	public decimal AllocationPercentage { get; set; }
+	public string AllocationStartDate { get; set; } = string.Empty;
+	public string AllocationEndDate { get; set; } = string.Empty;
+	public string AllocationStatus { get; set; } = string.Empty;
+}

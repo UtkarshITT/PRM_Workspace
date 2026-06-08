@@ -24,6 +24,7 @@ public static class DatabaseSeeder
 
 		await EnsureAdminEmployeeAsync(context);
 		await SeedDemoDataIfNeededAsync(context);
+		await SeedDemoProjectsIfNeededAsync(context);
 	}
 
 	private static async Task SeedAdminAsync(PrmDbContext context)
@@ -269,6 +270,147 @@ public static class DatabaseSeeder
 				ProficiencyLevel = proficiency,
 				CreatedAt = now
 			});
+		}
+
+		await context.SaveChangesAsync();
+	}
+
+	private static async Task SeedDemoProjectsIfNeededAsync(PrmDbContext context)
+	{
+		if (await context.Projects.AnyAsync())
+		{
+			return;
+		}
+
+		var managers = await context.Users
+			.Where(user => user.Role == Roles.Manager)
+			.OrderBy(user => user.Id)
+			.ToListAsync();
+
+		if (managers.Count == 0)
+		{
+			return;
+		}
+
+		var now = DateTime.UtcNow;
+		var projectDefinitions = new[]
+		{
+			("Alpha Portal", "Customer web portal", new DateOnly(2026, 1, 1), new DateOnly(2026, 6, 30), ProjectStatuses.Active, 120, 0),
+			("Beta CRM", "CRM modernization", new DateOnly(2026, 2, 1), new DateOnly(2026, 8, 15), ProjectStatuses.Active, 80, 0),
+			("Gamma Rewrite", "Legacy rewrite", new DateOnly(2026, 2, 1), new DateOnly(2026, 7, 1), ProjectStatuses.Active, 60, 1),
+			("Delta Migrate", "Cloud migration", new DateOnly(2026, 4, 1), new DateOnly(2026, 9, 30), ProjectStatuses.Planned, 100, 2)
+		};
+
+		var projects = new List<Project>();
+
+		foreach (var (name, description, start, end, status, storyPoints, managerIndex) in projectDefinitions)
+		{
+			var managerId = managers[Math.Min(managerIndex, managers.Count - 1)].Id;
+			var project = new Project
+			{
+				ProjectName = name,
+				Description = description,
+				StartDate = start,
+				EndDate = end,
+				ProjectStatus = status,
+				HealthStatus = "GREEN",
+				TotalStoryPoints = storyPoints,
+				ManagerUserId = managerId,
+				IsActive = true,
+				CreatedAt = now,
+				UpdatedAt = now
+			};
+
+			context.Projects.Add(project);
+			await context.SaveChangesAsync();
+			project.ProjectCode = $"PRJ-{project.Id:D6}";
+			projects.Add(project);
+		}
+
+		await context.SaveChangesAsync();
+
+		var milestoneDefinitions = new (int ProjectIndex, string Title, DateOnly DueDate, int StoryPoints, short SortOrder, string Status)[]
+		{
+			(0, "Design Complete", new DateOnly(2026, 4, 1), 20, 1, MilestoneStatuses.Done),
+			(0, "Backend API", new DateOnly(2026, 4, 15), 40, 2, MilestoneStatuses.InProgress),
+			(0, "Testing", new DateOnly(2026, 4, 30), 35, 3, MilestoneStatuses.NotStarted),
+			(0, "Go Live", new DateOnly(2026, 5, 15), 25, 4, MilestoneStatuses.NotStarted),
+			(1, "Requirements", new DateOnly(2026, 3, 15), 15, 1, MilestoneStatuses.Done),
+			(1, "Implementation", new DateOnly(2026, 6, 1), 45, 2, MilestoneStatuses.InProgress),
+			(2, "Architecture", new DateOnly(2026, 3, 1), 10, 1, MilestoneStatuses.Done)
+		};
+
+		foreach (var (projectIndex, title, dueDate, storyPoints, sortOrder, status) in milestoneDefinitions)
+		{
+			context.ProjectMilestones.Add(new ProjectMilestone
+			{
+				ProjectId = projects[projectIndex].Id,
+				MilestoneTitle = title,
+				DueDate = dueDate,
+				StoryPoints = storyPoints,
+				SortOrder = sortOrder,
+				MilestoneStatus = status,
+				CompletedAt = status == MilestoneStatuses.Done ? now : null,
+				CreatedAt = now,
+				UpdatedAt = now
+			});
+		}
+
+		await context.SaveChangesAsync();
+		await SeedDemoAllocationsAsync(context, projects);
+	}
+
+	private static async Task SeedDemoAllocationsAsync(PrmDbContext context, IReadOnlyList<Project> projects)
+	{
+		if (await context.ProjectAllocations.AnyAsync())
+		{
+			return;
+		}
+
+		var employees = await context.Employees
+			.Include(employee => employee.User)
+			.Where(employee => employee.User.Role == Roles.Employee && employee.IsActive)
+			.ToListAsync();
+
+		if (employees.Count == 0 || projects.Count < 3)
+		{
+			return;
+		}
+
+		var manager = await context.Users.FirstAsync(user => user.Role == Roles.Manager);
+		var now = DateTime.UtcNow;
+
+		var allocations = new (int EmployeeIndex, int ProjectIndex, decimal Percentage, DateOnly Start, DateOnly End)[]
+		{
+			(0, 0, 50, new DateOnly(2026, 3, 1), new DateOnly(2026, 6, 30)),
+			(0, 1, 50, new DateOnly(2026, 4, 1), new DateOnly(2026, 7, 31)),
+			(3, 0, 100, new DateOnly(2026, 3, 1), new DateOnly(2026, 6, 30)),
+			(2, 2, 75, new DateOnly(2026, 2, 1), new DateOnly(2026, 7, 1))
+		};
+
+		foreach (var (employeeIndex, projectIndex, percentage, start, end) in allocations)
+		{
+			if (employeeIndex >= employees.Count || projectIndex >= projects.Count)
+			{
+				continue;
+			}
+
+			var employee = employees[employeeIndex];
+			context.ProjectAllocations.Add(new ProjectAllocation
+			{
+				EmployeeId = employee.Id,
+				ProjectId = projects[projectIndex].Id,
+				AllocationPercentage = percentage,
+				AllocationStartDate = start,
+				AllocationEndDate = end,
+				AllocationStatus = "ACTIVE",
+				AllocatedByManagerId = manager.Id,
+				CreatedAt = now,
+				UpdatedAt = now
+			});
+
+			employee.EmploymentStatus = "ALLOCATED";
+			employee.UpdatedAt = now;
 		}
 
 		await context.SaveChangesAsync();

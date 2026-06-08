@@ -16,6 +16,7 @@ var serverBaseUrl = configuration["ServerBaseUrl"] ?? "https://localhost:5001";
 var restClient = new RestClient(serverBaseUrl);
 var authClient = new AuthClient(restClient);
 var adminClient = new AdminClient(restClient);
+var managerClient = new ManagerClient(restClient);
 
 var app = new AppStarter(
 	serverBaseUrl,
@@ -23,8 +24,12 @@ var app = new AppStarter(
 	new ChangePasswordScreen(authClient),
 	new AdminMenuScreen(
 		new ManageUsersScreen(adminClient),
-		new ManageEmployeesScreen(adminClient)),
-	new ManagerMenuScreen(),
+		new ManageEmployeesScreen(adminClient),
+		new ManageProjectsScreen(adminClient),
+		new ViewAllocationsScreen(adminClient)),
+	new ManagerMenuScreen(
+		new ResourceDashboardScreen(managerClient),
+		new AllocateResourceScreen(managerClient)),
 	new EmployeeMenuScreen());
 
 await app.RunAsync();

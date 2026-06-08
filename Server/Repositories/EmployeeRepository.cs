@@ -30,6 +30,36 @@ public class EmployeeRepository : IEmployeeRepository
 			.FirstOrDefaultAsync(employee => employee.UserId == userId, cancellationToken);
 	}
 
+	public async Task<IReadOnlyList<Employee>> GetByManagerIdAsync(
+		long managerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		return await _context.Employees
+			.Include(employee => employee.User)
+			.Include(employee => employee.EmployeeSkills)
+			.ThenInclude(employeeSkill => employeeSkill.Skill)
+			.Include(employee => employee.ProjectAllocations)
+			.Where(employee => employee.ManagerId == managerUserId && employee.IsActive)
+			.OrderBy(employee => employee.Id)
+			.ToListAsync(cancellationToken);
+	}
+
+	public Task<Employee?> GetTeamMemberAsync(
+		long employeeId,
+		long managerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		return _context.Employees
+			.Include(employee => employee.User)
+			.Include(employee => employee.EmployeeSkills)
+			.ThenInclude(employeeSkill => employeeSkill.Skill)
+			.Include(employee => employee.ProjectAllocations)
+			.ThenInclude(allocation => allocation.Project)
+			.FirstOrDefaultAsync(
+				employee => employee.Id == employeeId && employee.ManagerId == managerUserId && employee.IsActive,
+				cancellationToken);
+	}
+
 	public async Task<IReadOnlyList<Employee>> GetAllAsync(
 		string? status,
 		string? department,

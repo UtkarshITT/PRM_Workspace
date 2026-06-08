@@ -83,7 +83,7 @@ public class AppStarter
 				_adminMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
 			case "MANAGER":
-				_managerMenuScreen.Show();
+				_managerMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
 			case "EMPLOYEE":
 				_employeeMenuScreen.Show();
