@@ -6,13 +6,19 @@ public class ManagerMenuScreen
 {
 	private readonly ResourceDashboardScreen _resourceDashboardScreen;
 	private readonly AllocateResourceScreen _allocateResourceScreen;
+	private readonly MyProjectsScreen _myProjectsScreen;
+	private readonly TeamTimesheetsScreen _teamTimesheetsScreen;
 
 	public ManagerMenuScreen(
 		ResourceDashboardScreen resourceDashboardScreen,
-		AllocateResourceScreen allocateResourceScreen)
+		AllocateResourceScreen allocateResourceScreen,
+		MyProjectsScreen myProjectsScreen,
+		TeamTimesheetsScreen teamTimesheetsScreen)
 	{
 		_resourceDashboardScreen = resourceDashboardScreen;
 		_allocateResourceScreen = allocateResourceScreen;
+		_myProjectsScreen = myProjectsScreen;
+		_teamTimesheetsScreen = teamTimesheetsScreen;
 	}
 
 	public async Task ShowAsync()
@@ -25,8 +31,8 @@ public class ManagerMenuScreen
 			ConsoleHelper.WriteHeader($"Manager Menu — Welcome, {SessionStore.FullName}");
 			Console.WriteLine("  1. Resource Dashboard");
 			Console.WriteLine("  2. Allocate Resource");
-			Console.WriteLine("  3. My Projects (Phase 6)");
-			Console.WriteLine("  4. Team Timesheets (Phase 6)");
+			Console.WriteLine("  3. My Projects");
+			Console.WriteLine("  4. Team Timesheets");
 			Console.WriteLine("  5. AI Assistant (Phase 8)");
 			Console.WriteLine("  0. Logout");
 			Console.WriteLine();
@@ -39,6 +45,12 @@ public class ManagerMenuScreen
 					break;
 				case "2":
 					await _allocateResourceScreen.ShowAsync();
+					break;
+				case "3":
+					await _myProjectsScreen.ShowAsync();
+					break;
+				case "4":
+					await _teamTimesheetsScreen.ShowAsync();
 					break;
 				case "0":
 					SessionStore.Clear();

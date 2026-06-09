@@ -47,6 +47,16 @@ public class AllocationController : ControllerBase
 		return StatusCode(StatusCodes.Status201Created, ApiResponse<AllocationCreatedDto>.Ok(result, "Allocation created."));
 	}
 
+	[Authorize(Roles = "EMPLOYEE")]
+	[HttpGet("my")]
+	public async Task<ActionResult<ApiResponse<EmployeeAllocationsResponseDto>>> GetMyAllocations(
+		[FromQuery] DateOnly? week,
+		CancellationToken cancellationToken)
+	{
+		var result = await _allocationService.GetMyAllocationsAsync(GetEmployeeId(), week, cancellationToken);
+		return Ok(ApiResponse<EmployeeAllocationsResponseDto>.Ok(result, "Allocations retrieved."));
+	}
+
 	[Authorize(Roles = "MANAGER")]
 	[HttpPut("{id:long}/end")]
 	public async Task<ActionResult<ApiResponse<object>>> EndAllocation(long id, CancellationToken cancellationToken)
@@ -59,5 +69,11 @@ public class AllocationController : ControllerBase
 	{
 		var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
 		return long.Parse(userIdClaim!);
+	}
+
+	private long GetEmployeeId()
+	{
+		var employeeIdClaim = User.FindFirstValue("employee_id");
+		return long.Parse(employeeIdClaim!);
 	}
 }

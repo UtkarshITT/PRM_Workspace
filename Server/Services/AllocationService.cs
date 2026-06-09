@@ -20,6 +20,10 @@ public interface IAllocationService
 		long managerUserId,
 		CancellationToken cancellationToken = default);
 	Task EndAllocationAsync(long allocationId, long managerUserId, CancellationToken cancellationToken = default);
+	Task<EmployeeAllocationsResponseDto> GetMyAllocationsAsync(
+		long employeeId,
+		DateOnly? weekStart,
+		CancellationToken cancellationToken = default);
 }
 
 public class AllocationService : IAllocationService
@@ -206,5 +210,43 @@ public class AllocationService : IAllocationService
 			await transaction.RollbackAsync(cancellationToken);
 			throw;
 		}
+	}
+
+	public async Task<EmployeeAllocationsResponseDto> GetMyAllocationsAsync(
+		long employeeId,
+		DateOnly? weekStart,
+		CancellationToken cancellationToken = default)
+	{
+		var allocations = await _allocationRepository.GetByEmployeeIdWithProjectsAsync(employeeId, cancellationToken);
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		var activeUtilization = UtilizationCalculator.CalculateCurrentUtilization(allocations, today);
+
+		IEnumerable<ProjectAllocation> filtered = allocations.Where(allocation => allocation.AllocationStatus == "ACTIVE");
+
+		if (weekStart.HasValue)
+		{
+			var weekEnd = WeekHelper.GetWeekEnd(weekStart.Value);
+			filtered = filtered.Where(allocation =>
+				UtilizationCalculator.PeriodsOverlap(
+					allocation.AllocationStartDate,
+					allocation.AllocationEndDate,
+					weekStart.Value,
+					weekEnd));
+		}
+
+		return new EmployeeAllocationsResponseDto
+		{
+			Allocations = filtered.Select(allocation => new EmployeeAllocationDto
+			{
+				Id = allocation.Id,
+				ProjectId = allocation.ProjectId,
+				ProjectName = allocation.Project.ProjectName,
+				AllocationPercentage = allocation.AllocationPercentage,
+				AllocationStartDate = allocation.AllocationStartDate,
+				AllocationEndDate = allocation.AllocationEndDate,
+				AllocationStatus = allocation.AllocationStatus
+			}).ToList(),
+			TotalActiveUtilizationPercent = activeUtilization
+		};
 	}
 }

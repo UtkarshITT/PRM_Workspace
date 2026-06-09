@@ -72,4 +72,24 @@ public class ProjectRepository : IProjectRepository
 	{
 		return _context.SaveChangesAsync(cancellationToken);
 	}
+
+	public async Task<IReadOnlyList<Project>> GetByManagerUserIdAsync(
+		long managerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		return await _context.Projects
+			.Where(project => project.ManagerUserId == managerUserId && project.IsActive)
+			.OrderBy(project => project.ProjectName)
+			.ToListAsync(cancellationToken);
+	}
+
+	public Task<Project?> GetDetailByIdAsync(long projectId, CancellationToken cancellationToken = default)
+	{
+		return _context.Projects
+			.Include(project => project.Milestones)
+			.Include(project => project.ProjectAllocations)
+			.ThenInclude(allocation => allocation.Employee)
+			.ThenInclude(employee => employee.User)
+			.FirstOrDefaultAsync(project => project.Id == projectId && project.IsActive, cancellationToken);
+	}
 }

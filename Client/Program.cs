@@ -17,6 +17,7 @@ var restClient = new RestClient(serverBaseUrl);
 var authClient = new AuthClient(restClient);
 var adminClient = new AdminClient(restClient);
 var managerClient = new ManagerClient(restClient);
+var employeeClient = new EmployeeClient(restClient);
 
 var app = new AppStarter(
 	serverBaseUrl,
@@ -29,8 +30,14 @@ var app = new AppStarter(
 		new ViewAllocationsScreen(adminClient)),
 	new ManagerMenuScreen(
 		new ResourceDashboardScreen(managerClient),
-		new AllocateResourceScreen(managerClient)),
-	new EmployeeMenuScreen());
+		new AllocateResourceScreen(managerClient),
+		new MyProjectsScreen(managerClient),
+		new TeamTimesheetsScreen(managerClient)),
+	new EmployeeMenuScreen(
+		employeeClient,
+		new SubmitTimesheetScreen(employeeClient),
+		new ViewTimesheetsScreen(employeeClient),
+		new ViewMyAllocationsScreen(employeeClient)));
 
 await app.RunAsync();
 

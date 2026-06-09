@@ -64,4 +64,16 @@ public class AllocationRepository : IAllocationRepository
 			.ThenBy(allocation => allocation.Project.ProjectName)
 			.ToListAsync(cancellationToken);
 	}
+
+	public async Task<IReadOnlyList<ProjectAllocation>> GetByEmployeeIdWithProjectsAsync(
+		long employeeId,
+		CancellationToken cancellationToken = default)
+	{
+		return await _context.ProjectAllocations
+			.Include(allocation => allocation.Project)
+			.Where(allocation => allocation.EmployeeId == employeeId)
+			.OrderByDescending(allocation => allocation.AllocationStatus == "ACTIVE")
+			.ThenBy(allocation => allocation.Project.ProjectName)
+			.ToListAsync(cancellationToken);
+	}
 }

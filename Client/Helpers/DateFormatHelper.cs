@@ -21,4 +21,16 @@ public static class DateFormatHelper
 
 	public static string ToApiDate(DateOnly date) =>
 		date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+	public static DateOnly GetWeekStart(DateOnly date)
+	{
+		var daysFromMonday = ((int)date.DayOfWeek + 6) % 7;
+		return date.AddDays(-daysFromMonday);
+	}
+
+	public static DateOnly GetLastCompletedWeekStart(DateOnly today) =>
+		GetWeekStart(today).AddDays(-7);
+
+	public static DateOnly ParseApiDate(string apiDate) =>
+		DateOnly.Parse(apiDate, CultureInfo.InvariantCulture);
 }

@@ -11,4 +11,6 @@ public interface IProjectRepository
 	Task<IReadOnlyList<ProjectMilestone>> GetMilestonesAsync(long projectId, CancellationToken cancellationToken = default);
 	Task<ProjectMilestone> AddMilestoneAsync(ProjectMilestone milestone, CancellationToken cancellationToken = default);
 	Task SaveChangesAsync(CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<Project>> GetByManagerUserIdAsync(long managerUserId, CancellationToken cancellationToken = default);
+	Task<Project?> GetDetailByIdAsync(long projectId, CancellationToken cancellationToken = default);
 }

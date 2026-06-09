@@ -26,7 +26,9 @@ public class ProjectServiceTests : IDisposable
 		_context = new PrmDbContext(options);
 		_projectService = new ProjectService(
 			new ProjectRepository(_context),
-			new UserRepository(_context));
+			new UserRepository(_context),
+			new TimesheetRepository(_context),
+			new SystemConfigRepository(_context));
 	}
 
 	[Fact]
@@ -67,6 +69,32 @@ public class ProjectServiceTests : IDisposable
 	}
 
 	[Fact]
+	public async Task GetMyProjectsAsync_ReturnsOnlyManagerOwnProjects()
+	{
+		var (managerId, otherManagerId) = await SeedTwoManagersAsync();
+		await SeedProjectForManagerAsync(managerId, "Alpha Portal");
+		await SeedProjectForManagerAsync(managerId, "Beta CRM");
+		await SeedProjectForManagerAsync(otherManagerId, "Other Project");
+
+		var result = await _projectService.GetMyProjectsAsync(managerId);
+
+		result.Should().HaveCount(2);
+		result.Select(project => project.ProjectName).Should().BeEquivalentTo(["Alpha Portal", "Beta CRM"]);
+	}
+
+	[Fact]
+	public async Task GetProjectDetailAsync_WhenNotProjectManager_ThrowsValidation()
+	{
+		var (managerId, otherManagerId) = await SeedTwoManagersAsync();
+		var projectId = await SeedProjectForManagerAsync(managerId, "Alpha Portal");
+
+		var act = () => _projectService.GetProjectDetailAsync(projectId, otherManagerId);
+
+		await act.Should().ThrowAsync<ValidationException>()
+			.WithMessage("*your own projects*");
+	}
+
+	[Fact]
 	public async Task AddMilestoneAsync_WithValidDueDate_AddsMilestone()
 	{
 		var projectId = await SeedProjectAsync();
@@ -101,6 +129,59 @@ public class ProjectServiceTests : IDisposable
 		_context.Users.Add(manager);
 		await _context.SaveChangesAsync();
 		return manager.Id;
+	}
+
+	private async Task<(long ManagerId, long OtherManagerId)> SeedTwoManagersAsync()
+	{
+		var now = DateTime.UtcNow;
+		var manager = new User
+		{
+			Username = "manager1",
+			Email = "manager1@techserve.com",
+			FullName = "Manager One",
+			PasswordHash = "hash",
+			Role = Roles.Manager,
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+		var otherManager = new User
+		{
+			Username = "manager2",
+			Email = "manager2@techserve.com",
+			FullName = "Manager Two",
+			PasswordHash = "hash",
+			Role = Roles.Manager,
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		_context.Users.AddRange(manager, otherManager);
+		await _context.SaveChangesAsync();
+		return (manager.Id, otherManager.Id);
+	}
+
+	private async Task<long> SeedProjectForManagerAsync(long managerId, string projectName)
+	{
+		var now = DateTime.UtcNow;
+		var project = new Project
+		{
+			ProjectCode = $"PRJ-{Guid.NewGuid():N}"[..10],
+			ProjectName = projectName,
+			StartDate = new DateOnly(2026, 1, 1),
+			EndDate = new DateOnly(2026, 6, 30),
+			ProjectStatus = ProjectStatuses.Active,
+			TotalStoryPoints = 100,
+			ManagerUserId = managerId,
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		_context.Projects.Add(project);
+		await _context.SaveChangesAsync();
+		return project.Id;
 	}
 
 	private async Task<long> SeedProjectAsync()

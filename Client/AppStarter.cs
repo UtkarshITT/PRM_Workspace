@@ -86,7 +86,7 @@ public class AppStarter
 				_managerMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
 			case "EMPLOYEE":
-				_employeeMenuScreen.Show();
+				_employeeMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
 			default:
 				ConsoleHelper.WriteError("Unknown role. Logging out.");

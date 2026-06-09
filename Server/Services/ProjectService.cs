@@ -1,5 +1,6 @@
 using PRM.Server.Constants;
 using PRM.Server.Exceptions;
+using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Projects;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories.Interfaces;
@@ -14,17 +15,34 @@ public interface IProjectService
 	Task<IReadOnlyList<MilestoneListItemDto>> GetMilestonesAsync(long projectId, CancellationToken cancellationToken = default);
 	Task<MilestoneListItemDto> AddMilestoneAsync(long projectId, CreateMilestoneDto dto, CancellationToken cancellationToken = default);
 	Task UpdateMilestoneStatusAsync(long projectId, long milestoneId, UpdateMilestoneStatusDto dto, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<ManagerProjectListItemDto>> GetMyProjectsAsync(
+		long managerUserId,
+		CancellationToken cancellationToken = default);
+	Task<ManagerProjectDetailDto> GetProjectDetailAsync(
+		long projectId,
+		long managerUserId,
+		CancellationToken cancellationToken = default);
 }
 
 public class ProjectService : IProjectService
 {
+	private const decimal DefaultMaxWeeklyHours = 40;
+
 	private readonly IProjectRepository _projectRepository;
 	private readonly IUserRepository _userRepository;
+	private readonly ITimesheetRepository _timesheetRepository;
+	private readonly ISystemConfigRepository _systemConfigRepository;
 
-	public ProjectService(IProjectRepository projectRepository, IUserRepository userRepository)
+	public ProjectService(
+		IProjectRepository projectRepository,
+		IUserRepository userRepository,
+		ITimesheetRepository timesheetRepository,
+		ISystemConfigRepository systemConfigRepository)
 	{
 		_projectRepository = projectRepository;
 		_userRepository = userRepository;
+		_timesheetRepository = timesheetRepository;
+		_systemConfigRepository = systemConfigRepository;
 	}
 
 	public async Task<ProjectCreatedDto> CreateProjectAsync(
@@ -155,6 +173,106 @@ public class ProjectService : IProjectService
 			: null;
 
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+	}
+
+	public async Task<IReadOnlyList<ManagerProjectListItemDto>> GetMyProjectsAsync(
+		long managerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		var projects = await _projectRepository.GetByManagerUserIdAsync(managerUserId, cancellationToken);
+
+		return projects.Select(project => new ManagerProjectListItemDto
+		{
+			Id = project.Id,
+			ProjectName = project.ProjectName,
+			EndDate = project.EndDate,
+			HealthStatus = project.HealthStatus,
+			ProjectStatus = project.ProjectStatus
+		}).ToList();
+	}
+
+	public async Task<ManagerProjectDetailDto> GetProjectDetailAsync(
+		long projectId,
+		long managerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		var project = await _projectRepository.GetDetailByIdAsync(projectId, cancellationToken);
+
+		if (project == null)
+		{
+			throw new NotFoundException($"Project with ID {projectId} was not found.");
+		}
+
+		if (project.ManagerUserId != managerUserId)
+		{
+			throw new ValidationException("You can only view your own projects.");
+		}
+
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(today);
+		var maxWeeklyHours = await GetMaxWeeklyHoursAsync(cancellationToken);
+
+		var activeAllocations = project.ProjectAllocations
+			.Where(allocation =>
+				allocation.AllocationStatus == "ACTIVE"
+				&& allocation.AllocationStartDate <= today
+				&& allocation.AllocationEndDate >= today)
+			.ToList();
+
+		var lastWeekHours = new List<(string EmployeeName, decimal HoursLogged, decimal ExpectedHours)>();
+		foreach (var allocation in activeAllocations)
+		{
+			var expectedHours = allocation.AllocationPercentage / 100m * maxWeeklyHours;
+			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectEmployeeWeekAsync(
+				project.Id,
+				allocation.EmployeeId,
+				lastWeekStart,
+				cancellationToken);
+
+			lastWeekHours.Add((allocation.Employee.User.FullName, loggedHours, expectedHours));
+		}
+
+		var riskFlags = ProjectHealthEvaluator.EvaluateRiskFlags(project, activeAllocations, lastWeekHours);
+
+		return new ManagerProjectDetailDto
+		{
+			Id = project.Id,
+			ProjectName = project.ProjectName,
+			HealthStatus = project.HealthStatus,
+			RiskFlags = riskFlags,
+			Milestones = project.Milestones
+				.OrderBy(milestone => milestone.SortOrder)
+				.Select(milestone => new ManagerMilestoneDto
+				{
+					Id = milestone.Id,
+					SortOrder = milestone.SortOrder,
+					MilestoneTitle = milestone.MilestoneTitle,
+					DueDate = milestone.DueDate,
+					MilestoneStatus = milestone.MilestoneStatus,
+					IsOverdue = milestone.DueDate < today && milestone.MilestoneStatus != MilestoneStatuses.Done
+				}).ToList(),
+			AllocatedResources = activeAllocations
+				.OrderBy(allocation => allocation.Employee.User.FullName)
+				.Select(allocation => new ProjectResourceDto
+				{
+					EmployeeName = allocation.Employee.User.FullName,
+					AllocationPercentage = allocation.AllocationPercentage,
+					AllocationStartDate = allocation.AllocationStartDate,
+					AllocationEndDate = allocation.AllocationEndDate
+				}).ToList()
+		};
+	}
+
+	private async Task<decimal> GetMaxWeeklyHoursAsync(CancellationToken cancellationToken)
+	{
+		var value = await _systemConfigRepository.GetValueByKeyAsync(SystemConfigKeys.MaxWeeklyHours, cancellationToken);
+
+		if (decimal.TryParse(value, out var maxHours) && maxHours > 0)
+		{
+			return maxHours;
+		}
+
+		return DefaultMaxWeeklyHours;
 	}
 
 	private async Task ValidateManagerAsync(long managerUserId, CancellationToken cancellationToken)

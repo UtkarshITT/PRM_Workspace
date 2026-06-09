@@ -23,4 +23,16 @@ public class ManagerClient
 
 	public Task<ApiResponse<object>> EndAllocationAsync(long allocationId) =>
 		_restClient.PutAsync<object>($"/api/allocations/{allocationId}/end", new { }, requireAuth: true);
+
+	public Task<ApiResponse<List<ManagerProjectListItem>>> GetMyProjectsAsync() =>
+		_restClient.GetAsync<List<ManagerProjectListItem>>("/api/projects/my", requireAuth: true);
+
+	public Task<ApiResponse<ManagerProjectDetail>> GetProjectDetailAsync(long projectId) =>
+		_restClient.GetAsync<ManagerProjectDetail>($"/api/projects/{projectId}", requireAuth: true);
+
+	public Task<ApiResponse<List<TeamTimesheetRow>>> GetTeamTimesheetsAsync(string weekStart) =>
+		_restClient.GetAsync<List<TeamTimesheetRow>>($"/api/timesheets/team?week={weekStart}", requireAuth: true);
+
+	public Task<ApiResponse<ManagerTimesheetDetail>> GetTimesheetDetailAsync(long timesheetId) =>
+		_restClient.GetAsync<ManagerTimesheetDetail>($"/api/timesheets/{timesheetId}", requireAuth: true);
 }

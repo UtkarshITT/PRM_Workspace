@@ -40,6 +40,14 @@ public class ExceptionHandlingMiddleware
 		{
 			await WriteErrorAsync(context, StatusCodes.Status409Conflict, ex.Message);
 		}
+		catch (Exceptions.DuplicateTimesheetException ex)
+		{
+			await WriteErrorAsync(context, StatusCodes.Status409Conflict, ex.Message);
+		}
+		catch (Exceptions.FutureWeekException ex)
+		{
+			await WriteErrorAsync(context, StatusCodes.Status400BadRequest, ex.Message);
+		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Unhandled exception");

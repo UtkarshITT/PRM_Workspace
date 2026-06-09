@@ -11,4 +11,7 @@ public interface IAllocationRepository
 		long? projectId,
 		string? status,
 		CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<ProjectAllocation>> GetByEmployeeIdWithProjectsAsync(
+		long employeeId,
+		CancellationToken cancellationToken = default);
 }
