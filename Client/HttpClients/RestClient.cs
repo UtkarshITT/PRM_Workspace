@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using PRM.Client.Helpers;
 using PRM.Client.Models;
 
@@ -23,7 +24,7 @@ public class RestClient
 	}
 
 	public Task<ApiResponse<T>> GetAsync<T>(string path, bool requireAuth = false) =>
-		SendAsync<T>(() => CreateRequest(HttpMethod.Get, path, requireAuth));
+		SendAsync<T>(() => CreateRequest(HttpMethod.Get, path, requireAuth), requireAuth);
 
 	public async Task<ApiResponse<T>> PostAsync<T>(string path, object body, bool requireAuth = false)
 	{
@@ -32,7 +33,7 @@ public class RestClient
 			var request = CreateRequest(HttpMethod.Post, path, requireAuth);
 			request.Content = JsonContent.Create(body);
 			return request;
-		});
+		}, requireAuth);
 	}
 
 	public async Task<ApiResponse<T>> PutAsync<T>(string path, object body, bool requireAuth = false)
@@ -42,21 +43,31 @@ public class RestClient
 			var request = CreateRequest(HttpMethod.Put, path, requireAuth);
 			request.Content = JsonContent.Create(body);
 			return request;
-		});
+		}, requireAuth);
 	}
 
 	public Task<ApiResponse<T>> DeleteAsync<T>(string path, bool requireAuth = false) =>
-		SendAsync<T>(() => CreateRequest(HttpMethod.Delete, path, requireAuth));
+		SendAsync<T>(() => CreateRequest(HttpMethod.Delete, path, requireAuth), requireAuth);
 
-	private async Task<ApiResponse<T>> SendAsync<T>(Func<HttpRequestMessage> createRequest)
+	private async Task<ApiResponse<T>> SendAsync<T>(Func<HttpRequestMessage> createRequest, bool requireAuth)
 	{
 		try
 		{
 			using var request = createRequest();
 			using var response = await _httpClient.SendAsync(request);
+			var payload = await TryReadApiResponseAsync<T>(response);
 
 			if (response.StatusCode == HttpStatusCode.Unauthorized)
 			{
+				if (!requireAuth)
+				{
+					return payload ?? new ApiResponse<T>
+					{
+						Success = false,
+						Error = "Invalid username or password."
+					};
+				}
+
 				SessionStore.Clear();
 				return new ApiResponse<T>
 				{
@@ -65,7 +76,14 @@ public class RestClient
 				};
 			}
 
-			var payload = await response.Content.ReadFromJsonAsync<ApiResponse<T>>();
+			if (response.StatusCode == HttpStatusCode.Forbidden)
+			{
+				return new ApiResponse<T>
+				{
+					Success = false,
+					Error = "You do not have permission to perform this action."
+				};
+			}
 
 			if (payload == null)
 			{
@@ -91,6 +109,7 @@ public class RestClient
 	private HttpRequestMessage CreateRequest(HttpMethod method, string path, bool requireAuth)
 	{
 		var request = new HttpRequestMessage(method, $"{_baseUrl}{path}");
+		request.Headers.TryAddWithoutValidation("X-Correlation-Id", Guid.NewGuid().ToString("N"));
 
 		if (requireAuth && SessionStore.IsAuthenticated)
 		{
@@ -98,5 +117,17 @@ public class RestClient
 		}
 
 		return request;
+	}
+
+	private static async Task<ApiResponse<T>?> TryReadApiResponseAsync<T>(HttpResponseMessage response)
+	{
+		try
+		{
+			return await response.Content.ReadFromJsonAsync<ApiResponse<T>>();
+		}
+		catch (JsonException)
+		{
+			return null;
+		}
 	}
 }

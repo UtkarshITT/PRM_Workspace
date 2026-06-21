@@ -18,6 +18,9 @@ public class ManagerClient
 	public Task<ApiResponse<TeamMemberDetail>> GetTeamMemberAsync(long employeeId) =>
 		_restClient.GetAsync<TeamMemberDetail>($"/api/employees/{employeeId}", requireAuth: true);
 
+	public Task<ApiResponse<object>> RestoreTimesheetAccessAsync(long employeeId) =>
+		_restClient.PutAsync<object>($"/api/employees/{employeeId}/restore-timesheet-access", new { }, requireAuth: true);
+
 	public Task<ApiResponse<AllocationCreatedResponse>> CreateAllocationAsync(CreateAllocationRequest request) =>
 		_restClient.PostAsync<AllocationCreatedResponse>("/api/allocations", request, requireAuth: true);
 

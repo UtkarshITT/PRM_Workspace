@@ -75,7 +75,7 @@ public class TeamTimesheetsScreen
 
 			Console.WriteLine();
 			Console.WriteLine("[V] View employee timesheet detail     [B] Back");
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim().ToUpperInvariant())
 			{

@@ -14,20 +14,20 @@ public interface IAuthService
 public class AuthService : IAuthService
 {
 	private readonly IUserRepository _userRepository;
-	private readonly IEmployeeRepository _employeeRepository;
+	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IAuditLogRepository _auditLogRepository;
 	private readonly ITokenService _tokenService;
 	private readonly ILogger<AuthService> _logger;
 
 	public AuthService(
 		IUserRepository userRepository,
-		IEmployeeRepository employeeRepository,
+		IResourceProfileRepository resourceProfileRepository,
 		IAuditLogRepository auditLogRepository,
 		ITokenService tokenService,
 		ILogger<AuthService> logger)
 	{
 		_userRepository = userRepository;
-		_employeeRepository = employeeRepository;
+		_resourceProfileRepository = resourceProfileRepository;
 		_auditLogRepository = auditLogRepository;
 		_tokenService = tokenService;
 		_logger = logger;
@@ -43,8 +43,8 @@ public class AuthService : IAuthService
 			throw new UnauthorizedAppException("Invalid username or password.");
 		}
 
-		var employee = await _employeeRepository.GetByUserIdAsync(user.Id, cancellationToken);
-		var (token, expiresAt) = _tokenService.GenerateToken(user, employee);
+		var resourceProfile = await _resourceProfileRepository.GetByUserIdAsync(user.Id, cancellationToken);
+		var (token, expiresAt) = _tokenService.GenerateToken(user, resourceProfile);
 
 		user.LastLoginAt = DateTime.UtcNow;
 		user.UpdatedAt = DateTime.UtcNow;
@@ -65,7 +65,7 @@ public class AuthService : IAuthService
 			Token = token,
 			ExpiresAt = expiresAt,
 			UserId = user.Id,
-			EmployeeId = employee?.Id,
+			ResourceProfileId = resourceProfile?.Id,
 			Role = user.Role,
 			FullName = user.FullName,
 			ForcePasswordChange = user.ForcePasswordChange
@@ -97,15 +97,15 @@ public class AuthService : IAuthService
 		user.UpdatedAt = DateTime.UtcNow;
 		await _userRepository.SaveChangesAsync(cancellationToken);
 
-		var employee = await _employeeRepository.GetByUserIdAsync(user.Id, cancellationToken);
-		var (token, expiresAt) = _tokenService.GenerateToken(user, employee);
+		var resourceProfile = await _resourceProfileRepository.GetByUserIdAsync(user.Id, cancellationToken);
+		var (token, expiresAt) = _tokenService.GenerateToken(user, resourceProfile);
 
 		return new LoginResponseDto
 		{
 			Token = token,
 			ExpiresAt = expiresAt,
 			UserId = user.Id,
-			EmployeeId = employee?.Id,
+			ResourceProfileId = resourceProfile?.Id,
 			Role = user.Role,
 			FullName = user.FullName,
 			ForcePasswordChange = false

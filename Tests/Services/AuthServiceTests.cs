@@ -36,7 +36,7 @@ public class AuthServiceTests : IDisposable
 
 		_authService = new AuthService(
 			new UserRepository(_context),
-			new EmployeeRepository(_context),
+			new ResourceProfileRepository(_context),
 			new AuditLogRepository(_context),
 			new TokenService(jwtSettings),
 			NullLogger<AuthService>.Instance);
@@ -130,10 +130,10 @@ public class AuthServiceTests : IDisposable
 		_context.Users.Add(user);
 		await _context.SaveChangesAsync();
 
-		_context.Employees.Add(new Employee
+		_context.ResourceProfiles.Add(new ResourceProfile
 		{
 			UserId = user.Id,
-			EmployeeCode = $"EMP-{user.Id:D6}",
+			ResourceProfileCode = $"EMP-{user.Id:D6}",
 			EmploymentStatus = "BENCH",
 			IsActive = true,
 			CreatedAt = now,

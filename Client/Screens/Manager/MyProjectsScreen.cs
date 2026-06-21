@@ -7,10 +7,12 @@ namespace PRM.Client.Screens.Manager;
 public class MyProjectsScreen
 {
 	private readonly ManagerClient _managerClient;
+	private readonly AiClient _aiClient;
 
-	public MyProjectsScreen(ManagerClient managerClient)
+	public MyProjectsScreen(ManagerClient managerClient, AiClient aiClient)
 	{
 		_managerClient = managerClient;
+		_aiClient = aiClient;
 	}
 
 	public async Task ShowAsync()
@@ -139,12 +141,27 @@ public class MyProjectsScreen
 		}
 
 		Console.WriteLine();
-		Console.WriteLine("[A] Get AI Risk Summary (Phase 8)     [B] Back");
-		Console.Write("Select option: ");
+		Console.WriteLine("[A] Get AI Risk Summary     [B] Back");
+		Console.Write("Enter option: ");
 		var option = Console.ReadLine()?.Trim().ToUpperInvariant();
 		if (option == "A")
 		{
-			ConsoleHelper.WriteError("AI Risk Summary is coming in Phase 8.");
+			Console.WriteLine();
+			Console.WriteLine("Generating AI summary...");
+			var aiResponse = await _aiClient.GetRiskSummaryAsync(projectId);
+			if (!aiResponse.Success || aiResponse.Data == null)
+			{
+				ConsoleHelper.WriteError(aiResponse.Error ?? "Risk summary failed.");
+			}
+			else
+			{
+				var summary = aiResponse.Data;
+				Console.WriteLine();
+				Console.WriteLine(summary.Paragraph ?? summary.Message ?? "No summary available.");
+				Console.WriteLine();
+				Console.WriteLine($"Note: {summary.Disclaimer}");
+			}
+
 			ConsoleHelper.PressEnterToContinue();
 		}
 	}

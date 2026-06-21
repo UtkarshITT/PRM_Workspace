@@ -24,10 +24,11 @@ public class ManageUsersScreen
 			Console.WriteLine("  1. Create User Account");
 			Console.WriteLine("  2. View All Users");
 			Console.WriteLine("  3. Reset User Password");
-			Console.WriteLine("  4. Deactivate User");
-			Console.WriteLine("  0. Back");
+			Console.WriteLine("  4. Change User Role");
+			Console.WriteLine("  5. Deactivate User");
+			Console.WriteLine("  6. Back");
 			Console.WriteLine();
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -41,9 +42,12 @@ public class ManageUsersScreen
 					await ResetPasswordAsync();
 					break;
 				case "4":
+					await ChangeUserRoleAsync();
+					break;
+				case "5":
 					await DeactivateUserAsync();
 					break;
-				case "0":
+				case "6":
 					running = false;
 					break;
 				default:
@@ -59,10 +63,36 @@ public class ManageUsersScreen
 		Console.Clear();
 		ConsoleHelper.WriteHeader("Create User Account");
 
-		var fullName = ConsoleHelper.ReadInput("Full Name         : ");
-		var email = ConsoleHelper.ReadInput("Email             : ");
-		var username = ConsoleHelper.ReadInput("Username          : ");
+		if (!TryReadRequired("Full Name         : ", "Full name is required.", out var fullName))
+		{
+			return;
+		}
+
+		if (!TryReadRequired("Email             : ", "Email is required.", out var email))
+		{
+			return;
+		}
+
+		if (!email.Contains('@', StringComparison.Ordinal))
+		{
+			ConsoleHelper.WriteError("Email must be valid.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		if (!TryReadRequired("Username          : ", "Username is required.", out var username))
+		{
+			return;
+		}
+
 		var password = ConsoleHelper.ReadInput("Temporary Password: ", secret: true);
+		if (password.Length < 8 || !password.Any(char.IsUpper) || !password.Any(char.IsDigit))
+		{
+			ConsoleHelper.WriteError("Temporary password must be at least 8 characters and include one uppercase letter and one number.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
 		var role = PromptRole();
 
 		if (string.IsNullOrWhiteSpace(role))
@@ -138,14 +168,19 @@ public class ManageUsersScreen
 		Console.Clear();
 		ConsoleHelper.WriteHeader("Reset User Password");
 
-		if (!long.TryParse(ConsoleHelper.ReadInput("User ID: "), out var userId))
+		if (!TryReadPositiveLong("User ID: ", "User ID must be a positive number.", out var userId))
 		{
-			ConsoleHelper.WriteError("Invalid user ID.");
-			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
 		var password = ConsoleHelper.ReadInput("New Temporary Password: ", secret: true);
+		if (password.Length < 8 || !password.Any(char.IsUpper) || !password.Any(char.IsDigit))
+		{
+			ConsoleHelper.WriteError("Temporary password must be at least 8 characters and include one uppercase letter and one number.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
 		var response = await _adminClient.ResetPasswordAsync(userId, new ResetPasswordRequest
 		{
 			NewTemporaryPassword = password
@@ -163,15 +198,77 @@ public class ManageUsersScreen
 		ConsoleHelper.PressEnterToContinue();
 	}
 
+	private async Task ChangeUserRoleAsync()
+	{
+		Console.Clear();
+		ConsoleHelper.WriteHeader("Change User Role");
+
+		if (!TryReadPositiveLong("User ID: ", "User ID must be a positive number.", out var userId))
+		{
+			return;
+		}
+
+		var user = await GetUserForUpdateAsync(userId);
+		if (user == null)
+		{
+			return;
+		}
+
+		ConsoleHelper.WriteKeepCurrentHint();
+		var role = PromptRole(user.Role);
+		if (string.IsNullOrWhiteSpace(role))
+		{
+			ConsoleHelper.WriteError("Invalid role selection.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		var response = await _adminClient.UpdateUserRoleAsync(userId, new UpdateUserRoleRequest
+		{
+			Role = role
+		});
+
+		if (response.Success)
+		{
+			ConsoleHelper.WriteSuccess("User role updated. The user must log in again for the new permissions.");
+		}
+		else
+		{
+			WriteApiError(response);
+			return;
+		}
+
+		ConsoleHelper.PressEnterToContinue();
+	}
+
+
+	private async Task<UserListItem?> GetUserForUpdateAsync(long userId)
+	{
+		var response = await _adminClient.GetUsersAsync();
+		if (!response.Success || response.Data == null)
+		{
+			WriteApiError(response);
+			return null;
+		}
+
+		var user = response.Data.FirstOrDefault(item => item.Id == userId);
+		if (user != null)
+		{
+			return user;
+		}
+
+		ConsoleHelper.WriteError("User not found.");
+		ConsoleHelper.PressEnterToContinue();
+		return null;
+	}
+
 	private async Task DeactivateUserAsync()
 	{
 		Console.Clear();
 		ConsoleHelper.WriteHeader("Deactivate User");
 
-		if (!long.TryParse(ConsoleHelper.ReadInput("User ID: "), out var userId))
+		if (!TryReadPositiveLong("User ID: ", "User ID must be a positive number.", out var userId))
 		{
-			ConsoleHelper.WriteError("Invalid user ID.");
-			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
@@ -194,18 +291,49 @@ public class ManageUsersScreen
 		ConsoleHelper.PressEnterToContinue();
 	}
 
-	private static string? PromptRole()
+	private static string? PromptRole(string? currentRole = null)
 	{
 		Console.WriteLine("Role: (1) Admin  (2) Manager  (3) Employee");
-		Console.Write("Enter choice: ");
+		Console.Write(string.IsNullOrWhiteSpace(currentRole) ? "Enter choice: " : $"Enter choice [{currentRole}]: ");
 
-		return Console.ReadLine()?.Trim() switch
+		var input = Console.ReadLine()?.Trim();
+		if (string.IsNullOrWhiteSpace(input) && !string.IsNullOrWhiteSpace(currentRole))
+		{
+			return currentRole;
+		}
+
+		return input switch
 		{
 			"1" => "ADMIN",
 			"2" => "MANAGER",
 			"3" => "EMPLOYEE",
 			_ => null
 		};
+	}
+
+	private static bool TryReadPositiveLong(string prompt, string error, out long value)
+	{
+		if (!long.TryParse(ConsoleHelper.ReadInput(prompt), out value) || value <= 0)
+		{
+			ConsoleHelper.WriteError(error);
+			ConsoleHelper.PressEnterToContinue();
+			return false;
+		}
+
+		return true;
+	}
+
+	private static bool TryReadRequired(string prompt, string error, out string value)
+	{
+		value = ConsoleHelper.ReadInput(prompt);
+		if (!string.IsNullOrWhiteSpace(value))
+		{
+			return true;
+		}
+
+		ConsoleHelper.WriteError(error);
+		ConsoleHelper.PressEnterToContinue();
+		return false;
 	}
 
 	private static void WriteApiError<T>(Models.ApiResponse<T> response)

@@ -10,9 +10,9 @@ public class PrmDbContext : DbContext
 	}
 
 	public DbSet<User> Users => Set<User>();
-	public DbSet<Employee> Employees => Set<Employee>();
+	public DbSet<ResourceProfile> ResourceProfiles => Set<ResourceProfile>();
 	public DbSet<Skill> Skills => Set<Skill>();
-	public DbSet<EmployeeSkill> EmployeeSkills => Set<EmployeeSkill>();
+	public DbSet<ResourceProfileSkill> ResourceProfileSkills => Set<ResourceProfileSkill>();
 	public DbSet<Project> Projects => Set<Project>();
 	public DbSet<ProjectMilestone> ProjectMilestones => Set<ProjectMilestone>();
 	public DbSet<ProjectAllocation> ProjectAllocations => Set<ProjectAllocation>();
@@ -24,11 +24,13 @@ public class PrmDbContext : DbContext
 	public DbSet<AiRequestLog> AiRequestLogs => Set<AiRequestLog>();
 	public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 	public DbSet<SchedulerJobLog> SchedulerJobLogs => Set<SchedulerJobLog>();
+	public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+	public DbSet<TimesheetComplianceTracking> TimesheetComplianceTrackings => Set<TimesheetComplianceTracking>();
 
 	protected override void OnModelCreating(ModelBuilder builder)
 	{
 		ConfigureUser(builder);
-		ConfigureEmployee(builder);
+		ConfigureResourceProfile(builder);
 		ConfigureSkills(builder);
 		ConfigureProjects(builder);
 		ConfigureAllocations(builder);
@@ -36,6 +38,7 @@ public class PrmDbContext : DbContext
 		ConfigureActivityTags(builder);
 		ConfigureSystemConfig(builder);
 		ConfigureLogs(builder);
+		ConfigureNotifications(builder);
 		ConfigureIndexes(builder);
 	}
 
@@ -61,26 +64,28 @@ public class PrmDbContext : DbContext
 		});
 	}
 
-	private static void ConfigureEmployee(ModelBuilder builder)
+	private static void ConfigureResourceProfile(ModelBuilder builder)
 	{
-		builder.Entity<Employee>(entity =>
+		builder.Entity<ResourceProfile>(entity =>
 		{
-			entity.ToTable("EMPLOYEES");
+			entity.ToTable("RESOURCE_PROFILES");
 			entity.HasKey(e => e.Id);
 			entity.Property(e => e.Id).HasColumnName("id");
 			entity.Property(e => e.UserId).HasColumnName("user_id");
 			entity.Property(e => e.ManagerId).HasColumnName("manager_id");
-			entity.Property(e => e.EmployeeCode).HasColumnName("employee_code").HasMaxLength(50);
+			entity.Property(e => e.ResourceProfileCode).HasColumnName("resource_profile_code").HasMaxLength(50);
 			entity.Property(e => e.Department).HasColumnName("department").HasMaxLength(100);
 			entity.Property(e => e.Designation).HasColumnName("designation").HasMaxLength(100);
 			entity.Property(e => e.EmploymentStatus).HasColumnName("employment_status").HasMaxLength(20);
 			entity.Property(e => e.IsActive).HasColumnName("is_active");
+			entity.Property(e => e.IsTimesheetFrozen).HasColumnName("is_timesheet_frozen");
+			entity.Property(e => e.TimesheetFrozenAt).HasColumnName("timesheet_frozen_at");
 			entity.Property(e => e.JoinedAt).HasColumnName("joined_at").HasColumnType("date");
 			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
 			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-			entity.HasIndex(e => e.EmployeeCode).IsUnique();
+			entity.HasIndex(e => e.ResourceProfileCode).IsUnique();
 			entity.HasIndex(e => e.UserId).IsUnique();
-			entity.HasOne(e => e.User).WithOne(u => u.Employee).HasForeignKey<Employee>(e => e.UserId);
+			entity.HasOne(e => e.User).WithOne(u => u.ResourceProfile).HasForeignKey<ResourceProfile>(e => e.UserId);
 			entity.HasOne(e => e.Manager).WithMany().HasForeignKey(e => e.ManagerId).OnDelete(DeleteBehavior.Restrict);
 		});
 	}
@@ -99,16 +104,16 @@ public class PrmDbContext : DbContext
 			entity.HasIndex(e => e.SkillName).IsUnique();
 		});
 
-		builder.Entity<EmployeeSkill>(entity =>
+		builder.Entity<ResourceProfileSkill>(entity =>
 		{
-			entity.ToTable("EMPLOYEE_SKILLS");
-			entity.HasKey(e => new { e.EmployeeId, e.SkillId });
-			entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+			entity.ToTable("RESOURCE_PROFILE_SKILLS");
+			entity.HasKey(e => new { e.ResourceProfileId, e.SkillId });
+			entity.Property(e => e.ResourceProfileId).HasColumnName("resource_profile_id");
 			entity.Property(e => e.SkillId).HasColumnName("skill_id");
 			entity.Property(e => e.ProficiencyLevel).HasColumnName("proficiency_level").HasMaxLength(20);
 			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
-			entity.HasOne(e => e.Employee).WithMany(e => e.EmployeeSkills).HasForeignKey(e => e.EmployeeId);
-			entity.HasOne(e => e.Skill).WithMany(s => s.EmployeeSkills).HasForeignKey(e => e.SkillId);
+			entity.HasOne(e => e.ResourceProfile).WithMany(e => e.ResourceProfileSkills).HasForeignKey(e => e.ResourceProfileId);
+			entity.HasOne(e => e.Skill).WithMany(s => s.ResourceProfileSkills).HasForeignKey(e => e.SkillId);
 		});
 	}
 
@@ -126,6 +131,7 @@ public class PrmDbContext : DbContext
 			entity.Property(e => e.EndDate).HasColumnName("end_date").HasColumnType("date");
 			entity.Property(e => e.ProjectStatus).HasColumnName("project_status").HasMaxLength(20);
 			entity.Property(e => e.HealthStatus).HasColumnName("health_status").HasMaxLength(20);
+			entity.Property(e => e.LastRiskSummary).HasColumnName("last_risk_summary");
 			entity.Property(e => e.TotalStoryPoints).HasColumnName("total_story_points");
 			entity.Property(e => e.ManagerUserId).HasColumnName("manager_user_id");
 			entity.Property(e => e.IsActive).HasColumnName("is_active");
@@ -161,7 +167,7 @@ public class PrmDbContext : DbContext
 			entity.ToTable("PROJECT_ALLOCATIONS");
 			entity.HasKey(e => e.Id);
 			entity.Property(e => e.Id).HasColumnName("id");
-			entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+			entity.Property(e => e.ResourceProfileId).HasColumnName("resource_profile_id");
 			entity.Property(e => e.ProjectId).HasColumnName("project_id");
 			entity.Property(e => e.AllocationPercentage).HasColumnName("allocation_percentage").HasPrecision(5, 2);
 			entity.Property(e => e.AllocationStartDate).HasColumnName("allocation_start_date").HasColumnType("date");
@@ -170,7 +176,7 @@ public class PrmDbContext : DbContext
 			entity.Property(e => e.AllocatedByManagerId).HasColumnName("allocated_by_manager_id");
 			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
 			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-			entity.HasOne(e => e.Employee).WithMany(e => e.ProjectAllocations).HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+			entity.HasOne(e => e.ResourceProfile).WithMany(e => e.ProjectAllocations).HasForeignKey(e => e.ResourceProfileId).OnDelete(DeleteBehavior.Restrict);
 			entity.HasOne(e => e.Project).WithMany(p => p.ProjectAllocations).HasForeignKey(e => e.ProjectId).OnDelete(DeleteBehavior.Restrict);
 			entity.HasOne(e => e.AllocatedByManager).WithMany().HasForeignKey(e => e.AllocatedByManagerId).OnDelete(DeleteBehavior.Restrict);
 		});
@@ -183,7 +189,7 @@ public class PrmDbContext : DbContext
 			entity.ToTable("TIMESHEETS");
 			entity.HasKey(e => e.Id);
 			entity.Property(e => e.Id).HasColumnName("id");
-			entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+			entity.Property(e => e.ResourceProfileId).HasColumnName("resource_profile_id");
 			entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date").HasColumnType("date");
 			entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
 			entity.Property(e => e.TotalHours).HasColumnName("total_hours").HasPrecision(5, 2);
@@ -191,8 +197,8 @@ public class PrmDbContext : DbContext
 			entity.Property(e => e.SubmittedAt).HasColumnName("submitted_at");
 			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
 			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-			entity.HasIndex(e => new { e.EmployeeId, e.WeekStartDate }).IsUnique();
-			entity.HasOne(e => e.Employee).WithMany(e => e.Timesheets).HasForeignKey(e => e.EmployeeId);
+			entity.HasIndex(e => new { e.ResourceProfileId, e.WeekStartDate }).IsUnique();
+			entity.HasOne(e => e.ResourceProfile).WithMany(e => e.Timesheets).HasForeignKey(e => e.ResourceProfileId);
 		});
 
 		builder.Entity<TimesheetLineItem>(entity =>
@@ -300,12 +306,48 @@ public class PrmDbContext : DbContext
 		});
 	}
 
+	private static void ConfigureNotifications(ModelBuilder builder)
+	{
+		builder.Entity<NotificationLog>(entity =>
+		{
+			entity.ToTable("NOTIFICATION_LOGS");
+			entity.HasKey(e => e.Id);
+			entity.Property(e => e.Id).HasColumnName("id");
+			entity.Property(e => e.NotificationType).HasColumnName("notification_type").HasMaxLength(50);
+			entity.Property(e => e.RecipientUserId).HasColumnName("recipient_user_id");
+			entity.Property(e => e.RecipientEmail).HasColumnName("recipient_email").HasMaxLength(255);
+			entity.Property(e => e.Subject).HasColumnName("subject").HasMaxLength(500);
+			entity.Property(e => e.Body).HasColumnName("body");
+			entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
+			entity.Property(e => e.DeliveryChannel).HasColumnName("delivery_channel").HasMaxLength(20);
+			entity.Property(e => e.RelatedEntityName).HasColumnName("related_entity_name").HasMaxLength(100);
+			entity.Property(e => e.RelatedEntityId).HasColumnName("related_entity_id");
+			entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date").HasColumnType("date");
+			entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+			entity.Property(e => e.SentAt).HasColumnName("sent_at");
+			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+			entity.HasOne(e => e.RecipientUser).WithMany().HasForeignKey(e => e.RecipientUserId).OnDelete(DeleteBehavior.Restrict);
+		});
+
+		builder.Entity<TimesheetComplianceTracking>(entity =>
+		{
+			entity.ToTable("TIMESHEET_COMPLIANCE_TRACKING");
+			entity.HasKey(e => new { e.ResourceProfileId, e.WeekStartDate });
+			entity.Property(e => e.ResourceProfileId).HasColumnName("resource_profile_id");
+			entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date").HasColumnType("date");
+			entity.Property(e => e.ReminderCount).HasColumnName("reminder_count");
+			entity.Property(e => e.LastReminderAt).HasColumnName("last_reminder_at");
+			entity.Property(e => e.IsFrozenForWeek).HasColumnName("is_frozen_for_week");
+			entity.HasOne(e => e.ResourceProfile).WithMany(r => r.ComplianceTracking).HasForeignKey(e => e.ResourceProfileId).OnDelete(DeleteBehavior.Cascade);
+		});
+	}
+
 	private static void ConfigureIndexes(ModelBuilder builder)
 	{
-		builder.Entity<Employee>().HasIndex(e => e.ManagerId).HasDatabaseName("IX_Employees_Manager");
-		builder.Entity<ProjectAllocation>().HasIndex(e => new { e.EmployeeId, e.AllocationStatus, e.AllocationStartDate, e.AllocationEndDate }).HasDatabaseName("IX_Allocations_Employee");
+		builder.Entity<ResourceProfile>().HasIndex(e => e.ManagerId).HasDatabaseName("IX_ResourceProfiles_Manager");
+		builder.Entity<ProjectAllocation>().HasIndex(e => new { e.ResourceProfileId, e.AllocationStatus, e.AllocationStartDate, e.AllocationEndDate }).HasDatabaseName("IX_Allocations_ResourceProfile");
 		builder.Entity<ProjectAllocation>().HasIndex(e => e.ProjectId).HasDatabaseName("IX_Allocations_Project");
-		builder.Entity<Timesheet>().HasIndex(e => e.EmployeeId).HasDatabaseName("IX_Timesheets_Employee_Week");
+		builder.Entity<Timesheet>().HasIndex(e => e.ResourceProfileId).HasDatabaseName("IX_Timesheets_ResourceProfile_Week");
 		builder.Entity<Project>().HasIndex(e => e.ManagerUserId).HasDatabaseName("IX_Projects_Manager");
 		builder.Entity<ProjectMilestone>().HasIndex(e => new { e.ProjectId, e.DueDate }).HasDatabaseName("IX_Milestones_Project");
 		builder.Entity<TimesheetLineItem>().HasIndex(e => e.TimesheetId).HasDatabaseName("IX_LineItems_Timesheet");

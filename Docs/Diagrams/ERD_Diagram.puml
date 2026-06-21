@@ -1,0 +1,252 @@
+@startuml PRM_ERD_V4
+
+!theme plain
+hide circle
+skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 50
+
+title PRM Tool — Entity Relationship Diagram (BRD V4 + Milestone 3)
+
+' Naming: tables UPPER_SNAKE, columns snake_case, PK id BIGINT
+
+entity "USERS" as users {
+  * id : BIGINT <<PK>>
+  --
+  * username : VARCHAR <<UK>>
+  * email : VARCHAR <<UK>>
+  * full_name : VARCHAR
+  * password_hash : VARCHAR
+  * role : VARCHAR
+  * is_active : BIT
+  * force_password_change : BIT
+  last_login_at : DATETIME
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "RESOURCE_PROFILES" as resource_profiles {
+  * id : BIGINT <<PK>>
+  --
+  ~ user_id : BIGINT <<FK, UK>>
+  ~ manager_id : BIGINT <<FK>>
+  * resource_profile_code : VARCHAR <<UK>>
+  department : VARCHAR
+  designation : VARCHAR
+  * employment_status : VARCHAR
+  * is_active : BIT
+  * is_timesheet_frozen : BIT
+  timesheet_frozen_at : DATETIME
+  joined_at : DATE
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "SKILLS" as skills {
+  * id : BIGINT <<PK>>
+  --
+  * skill_name : VARCHAR <<UK>>
+  * category : VARCHAR
+  * is_active : BIT
+  created_at : DATETIME
+}
+
+entity "RESOURCE_PROFILE_SKILLS" as resource_profile_skills {
+  ~ resource_profile_id : BIGINT <<FK>>
+  ~ skill_id : BIGINT <<FK>>
+  --
+  * proficiency_level : VARCHAR
+  created_at : DATETIME
+  ==
+  <<Composite PK>>
+}
+
+entity "PROJECTS" as projects {
+  * id : BIGINT <<PK>>
+  --
+  * project_code : VARCHAR <<UK>>
+  * project_name : VARCHAR
+  description : TEXT
+  * start_date : DATE
+  * end_date : DATE
+  * project_status : VARCHAR
+  * health_status : VARCHAR
+  last_risk_summary : TEXT
+  total_story_points : INT
+  ~ manager_user_id : BIGINT <<FK>>
+  * is_active : BIT
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "PROJECT_MILESTONES" as milestones {
+  * id : BIGINT <<PK>>
+  --
+  ~ project_id : BIGINT <<FK>>
+  * milestone_title : VARCHAR
+  description : TEXT
+  * due_date : DATE
+  * milestone_status : VARCHAR
+  story_points : INT
+  sort_order : SMALLINT
+  completed_at : DATETIME
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "PROJECT_ALLOCATIONS" as allocations {
+  * id : BIGINT <<PK>>
+  --
+  ~ resource_profile_id : BIGINT <<FK>>
+  ~ project_id : BIGINT <<FK>>
+  * allocation_percentage : DECIMAL
+  * allocation_start_date : DATE
+  * allocation_end_date : DATE
+  * allocation_status : VARCHAR
+  ~ allocated_by_manager_id : BIGINT <<FK>>
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "TIMESHEETS" as timesheets {
+  * id : BIGINT <<PK>>
+  --
+  ~ resource_profile_id : BIGINT <<FK>>
+  * week_start_date : DATE
+  * status : VARCHAR
+  * total_hours : DECIMAL
+  remarks : TEXT
+  submitted_at : DATETIME
+  created_at : DATETIME
+  updated_at : DATETIME
+  ==
+  <<UK: resource_profile_id + week_start_date>>
+}
+
+entity "TIMESHEET_LINE_ITEMS" as line_items {
+  * id : BIGINT <<PK>>
+  --
+  ~ timesheet_id : BIGINT <<FK>>
+  ~ project_id : BIGINT <<FK>>
+  * hours_logged : DECIMAL
+  work_notes : TEXT
+  work_date : DATE
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "ACTIVITY_TAGS" as activity_tags {
+  * id : BIGINT <<PK>>
+  --
+  * tag_code : VARCHAR <<UK>>
+  * tag_name : VARCHAR
+  tag_category : VARCHAR
+  * is_active : BIT
+  created_at : DATETIME
+}
+
+entity "TIMESHEET_LINE_ITEM_ACTIVITY_TAGS" as line_item_tags {
+  ~ timesheet_line_item_id : BIGINT <<FK>>
+  ~ activity_tag_id : BIGINT <<FK>>
+  --
+  custom_tag_text : VARCHAR
+  ==
+  <<Composite PK>>
+}
+
+entity "TIMESHEET_COMPLIANCE_TRACKING" as compliance {
+  ~ resource_profile_id : BIGINT <<FK>>
+  ~ week_start_date : DATE
+  --
+  reminder_count : SMALLINT
+  last_reminder_at : DATETIME
+  * is_frozen_for_week : BIT
+  ==
+  <<Composite PK>>
+}
+
+entity "NOTIFICATION_LOGS" as notifications {
+  * id : BIGINT <<PK>>
+  --
+  * notification_type : VARCHAR
+  ~ recipient_user_id : BIGINT <<FK>>
+  * recipient_email : VARCHAR
+  * subject : VARCHAR
+  * body : TEXT
+  * status : VARCHAR
+  * delivery_channel : VARCHAR
+  related_entity_name : VARCHAR
+  related_entity_id : BIGINT
+  week_start_date : DATE
+  error_message : TEXT
+  sent_at : DATETIME
+  created_at : DATETIME
+}
+
+entity "SYSTEM_CONFIGURATIONS" as system_config {
+  * id : BIGINT <<PK>>
+  --
+  * config_key : VARCHAR <<UK>>
+  * config_value : TEXT
+  description : TEXT
+  updated_at : DATETIME
+  updated_by_user_id : BIGINT <<FK>>
+}
+
+entity "AUDIT_LOGS" as audit_logs {
+  * id : BIGINT <<PK>>
+  --
+  ~ actor_user_id : BIGINT <<FK>>
+  * entity_name : VARCHAR
+  * entity_id : BIGINT
+  * action_type : VARCHAR
+  old_values : TEXT
+  new_values : TEXT
+  created_at : DATETIME
+  correlation_id : VARCHAR
+}
+
+entity "AI_REQUEST_LOGS" as ai_logs {
+  * id : BIGINT <<PK>>
+  --
+  * request_type : VARCHAR
+  * prompt : TEXT
+  response_summary : TEXT
+  ~ requested_by_user_id : BIGINT <<FK>>
+  created_at : DATETIME
+}
+
+entity "SCHEDULER_JOB_LOGS" as scheduler_logs {
+  * id : BIGINT <<PK>>
+  --
+  * job_name : VARCHAR
+  * status : VARCHAR
+  * started_at : DATETIME
+  completed_at : DATETIME
+  error_message : TEXT
+}
+
+' Relationships
+users ||--o| resource_profiles : "has_profile\n(user_id)"
+users ||--o{ projects : "manages\n(manager_user_id)"
+users ||--o{ allocations : "allocates\n(allocated_by_manager_id)"
+users ||--o{ notifications : "receives\n(recipient_user_id)"
+users ||--o{ audit_logs : "actor\n(actor_user_id)"
+users ||--o{ ai_logs : "requests\n(requested_by_user_id)"
+
+resource_profiles ||--o{ resource_profile_skills : "has"
+skills ||--o{ resource_profile_skills : "tagged_in"
+
+projects ||--o{ milestones : "contains\n(project_id)"
+projects ||--o{ allocations : "contains\n(project_id)"
+projects ||--o{ line_items : "logs_effort\n(project_id)"
+
+resource_profiles ||--o{ allocations : "allocated\n(resource_profile_id)"
+resource_profiles ||--o{ timesheets : "submits\n(resource_profile_id)"
+resource_profiles ||--o{ compliance : "tracked\n(resource_profile_id)"
+
+timesheets ||--o{ line_items : "contains\n(timesheet_id)"
+line_items ||--o{ line_item_tags : "tagged_with"
+activity_tags ||--o{ line_item_tags : "used_in"
+
+@enduml

@@ -9,12 +9,12 @@ using PRM.Server.Services.Interfaces;
 
 namespace PRM.Tests.Services;
 
-public class EmployeeServiceTeamTests : IDisposable
+public class ResourceProfileServiceTeamTests : IDisposable
 {
 	private readonly PrmDbContext _context;
-	private readonly EmployeeService _employeeService;
+	private readonly ResourceProfileService _resourceProfileService;
 
-	public EmployeeServiceTeamTests()
+	public ResourceProfileServiceTeamTests()
 	{
 		var options = new DbContextOptionsBuilder<PrmDbContext>()
 			.UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -22,9 +22,9 @@ public class EmployeeServiceTeamTests : IDisposable
 			.Options;
 
 		_context = new PrmDbContext(options);
-		_employeeService = new EmployeeService(
+		_resourceProfileService = new ResourceProfileService(
 			_context,
-			new EmployeeRepository(_context),
+			new ResourceProfileRepository(_context),
 			new UserRepository(_context),
 			new SkillRepository(_context),
 			new AllocationRepository(_context));
@@ -33,9 +33,9 @@ public class EmployeeServiceTeamTests : IDisposable
 	[Fact]
 	public async Task GetTeamDashboardAsync_ReturnsOnlyManagerTeam()
 	{
-		var managerId = await SeedManagersAndEmployeesAsync();
+		var managerId = await SeedManagersAndResourceProfilesAsync();
 
-		var dashboard = await _employeeService.GetTeamDashboardAsync(managerId);
+		var dashboard = await _resourceProfileService.GetTeamDashboardAsync(managerId);
 
 		dashboard.BenchMembers.Should().HaveCount(1);
 		dashboard.ActiveMembers.Should().HaveCount(1);
@@ -43,7 +43,7 @@ public class EmployeeServiceTeamTests : IDisposable
 		dashboard.ActiveMembers[0].FullName.Should().Be("Active Employee");
 	}
 
-	private async Task<long> SeedManagersAndEmployeesAsync()
+	private async Task<long> SeedManagersAndResourceProfilesAsync()
 	{
 		var now = DateTime.UtcNow;
 
@@ -113,37 +113,37 @@ public class EmployeeServiceTeamTests : IDisposable
 		_context.Users.AddRange(benchUser, activeUser, otherTeamUser);
 		await _context.SaveChangesAsync();
 
-		var benchEmployee = new Employee
+		var benchResourceProfile = new ResourceProfile
 		{
 			UserId = benchUser.Id,
 			ManagerId = manager1.Id,
-			EmployeeCode = "EMP-000001",
+			ResourceProfileCode = "EMP-000001",
 			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 
-		var activeEmployee = new Employee
+		var activeResourceProfile = new ResourceProfile
 		{
 			UserId = activeUser.Id,
 			ManagerId = manager1.Id,
-			EmployeeCode = "EMP-000002",
+			ResourceProfileCode = "EMP-000002",
 			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 
-		var otherEmployee = new Employee
+		var otherResourceProfile = new ResourceProfile
 		{
 			UserId = otherTeamUser.Id,
 			ManagerId = manager2.Id,
-			EmployeeCode = "EMP-000003",
+			ResourceProfileCode = "EMP-000003",
 			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 
-		_context.Employees.AddRange(benchEmployee, activeEmployee, otherEmployee);
+		_context.ResourceProfiles.AddRange(benchResourceProfile, activeResourceProfile, otherResourceProfile);
 
 		var project = new Project
 		{
@@ -163,7 +163,7 @@ public class EmployeeServiceTeamTests : IDisposable
 
 		_context.ProjectAllocations.Add(new ProjectAllocation
 		{
-			EmployeeId = activeEmployee.Id,
+			ResourceProfileId = activeResourceProfile.Id,
 			ProjectId = project.Id,
 			AllocationPercentage = 75,
 			AllocationStartDate = new DateOnly(2026, 1, 1),

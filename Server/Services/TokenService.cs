@@ -10,7 +10,7 @@ namespace PRM.Server.Services;
 
 public interface ITokenService
 {
-	(string Token, DateTime ExpiresAt) GenerateToken(User user, Employee? employee);
+	(string Token, DateTime ExpiresAt) GenerateToken(User user, ResourceProfile? resourceProfile);
 }
 
 public class TokenService : ITokenService
@@ -22,10 +22,10 @@ public class TokenService : ITokenService
 		_settings = settings.Value;
 	}
 
-	public (string Token, DateTime ExpiresAt) GenerateToken(User user, Employee? employee)
+	public (string Token, DateTime ExpiresAt) GenerateToken(User user, ResourceProfile? resourceProfile)
 	{
 		var expiresAt = DateTime.UtcNow.AddHours(_settings.ExpiryHours);
-		var claims = BuildClaims(user, employee);
+		var claims = BuildClaims(user, resourceProfile);
 		var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.SecretKey));
 		var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -39,7 +39,7 @@ public class TokenService : ITokenService
 		return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
 	}
 
-	private static IEnumerable<Claim> BuildClaims(User user, Employee? employee)
+	private static IEnumerable<Claim> BuildClaims(User user, ResourceProfile? resourceProfile)
 	{
 		var claims = new List<Claim>
 		{
@@ -49,9 +49,9 @@ public class TokenService : ITokenService
 			new("force_password_change", user.ForcePasswordChange.ToString().ToLowerInvariant())
 		};
 
-		if (employee != null)
+		if (resourceProfile != null)
 		{
-			claims.Add(new Claim("employee_id", employee.Id.ToString()));
+			claims.Add(new Claim("resource_profile_id", resourceProfile.Id.ToString()));
 
 			if (user.Role == "MANAGER")
 			{

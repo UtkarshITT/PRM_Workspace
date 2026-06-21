@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PRM.Server.Data;
+using PRM.Server.Helpers;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories.Interfaces;
 
@@ -17,18 +18,18 @@ public class AllocationRepository : IAllocationRepository
 	public Task<ProjectAllocation?> GetByIdWithDetailsAsync(long allocationId, CancellationToken cancellationToken = default)
 	{
 		return _context.ProjectAllocations
-			.Include(allocation => allocation.Employee)
-			.ThenInclude(employee => employee.User)
+			.Include(allocation => allocation.ResourceProfile)
+			.ThenInclude(resourceProfile => resourceProfile.User)
 			.Include(allocation => allocation.Project)
 			.FirstOrDefaultAsync(allocation => allocation.Id == allocationId, cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<ProjectAllocation>> GetActiveByEmployeeIdAsync(
-		long employeeId,
+	public async Task<IReadOnlyList<ProjectAllocation>> GetActiveByResourceProfileIdAsync(
+		long resourceProfileId,
 		CancellationToken cancellationToken = default)
 	{
 		return await _context.ProjectAllocations
-			.Where(allocation => allocation.EmployeeId == employeeId && allocation.AllocationStatus == "ACTIVE")
+			.Where(allocation => allocation.ResourceProfileId == resourceProfileId && allocation.AllocationStatus == "ACTIVE")
 			.ToListAsync(cancellationToken);
 	}
 
@@ -39,14 +40,14 @@ public class AllocationRepository : IAllocationRepository
 		CancellationToken cancellationToken = default)
 	{
 		var query = _context.ProjectAllocations
-			.Include(allocation => allocation.Employee)
-			.ThenInclude(employee => employee.User)
+			.Include(allocation => allocation.ResourceProfile)
+			.ThenInclude(resourceProfile => resourceProfile.User)
 			.Include(allocation => allocation.Project)
 			.AsQueryable();
 
 		if (employeeId.HasValue)
 		{
-			query = query.Where(allocation => allocation.EmployeeId == employeeId.Value);
+			query = query.Where(allocation => allocation.ResourceProfileId == employeeId.Value);
 		}
 
 		if (projectId.HasValue)
@@ -60,20 +61,38 @@ public class AllocationRepository : IAllocationRepository
 		}
 
 		return await query
-			.OrderBy(allocation => allocation.Employee.User.FullName)
+			.OrderBy(allocation => allocation.ResourceProfile.User.FullName)
 			.ThenBy(allocation => allocation.Project.ProjectName)
 			.ToListAsync(cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<ProjectAllocation>> GetByEmployeeIdWithProjectsAsync(
-		long employeeId,
+	public async Task<IReadOnlyList<ProjectAllocation>> GetByResourceProfileIdWithProjectsAsync(
+		long resourceProfileId,
 		CancellationToken cancellationToken = default)
 	{
 		return await _context.ProjectAllocations
 			.Include(allocation => allocation.Project)
-			.Where(allocation => allocation.EmployeeId == employeeId)
+			.Where(allocation => allocation.ResourceProfileId == resourceProfileId)
 			.OrderByDescending(allocation => allocation.AllocationStatus == "ACTIVE")
 			.ThenBy(allocation => allocation.Project.ProjectName)
 			.ToListAsync(cancellationToken);
+	}
+
+	public async Task<IReadOnlyList<ProjectAllocation>> GetActiveAllocationsForWeekAsync(
+		DateOnly weekStart,
+		DateOnly weekEnd,
+		CancellationToken cancellationToken = default)
+	{
+		var allocations = await _context.ProjectAllocations
+			.Where(allocation => allocation.AllocationStatus == "ACTIVE")
+			.ToListAsync(cancellationToken);
+
+		return allocations
+			.Where(allocation => UtilizationCalculator.PeriodsOverlap(
+				allocation.AllocationStartDate,
+				allocation.AllocationEndDate,
+				weekStart,
+				weekEnd))
+			.ToList();
 	}
 }

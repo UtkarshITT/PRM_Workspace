@@ -8,12 +8,12 @@ using PRM.Server.Services.Interfaces;
 
 namespace PRM.Tests.Services;
 
-public class EmployeeServiceTests : IDisposable
+public class ResourceProfileServiceTests : IDisposable
 {
 	private readonly PrmDbContext _context;
-	private readonly EmployeeService _employeeService;
+	private readonly ResourceProfileService _resourceProfileService;
 
-	public EmployeeServiceTests()
+	public ResourceProfileServiceTests()
 	{
 		var options = new DbContextOptionsBuilder<PrmDbContext>()
 			.UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -21,9 +21,9 @@ public class EmployeeServiceTests : IDisposable
 			.Options;
 
 		_context = new PrmDbContext(options);
-		_employeeService = new EmployeeService(
+		_resourceProfileService = new ResourceProfileService(
 			_context,
-			new EmployeeRepository(_context),
+			new ResourceProfileRepository(_context),
 			new UserRepository(_context),
 			new SkillRepository(_context),
 			new AllocationRepository(_context));
@@ -32,26 +32,51 @@ public class EmployeeServiceTests : IDisposable
 	[Fact]
 	public async Task DeactivateEmployeeAsync_EndsActiveAllocationsAndBlocksLogin()
 	{
-		var (employee, user) = await SeedEmployeeWithAllocationAsync();
+		var (resourceProfile, user) = await SeedResourceProfileWithAllocationAsync();
 
-		await _employeeService.DeactivateEmployeeAsync(employee.Id, actorUserId: 1);
+		await _resourceProfileService.DeactivateEmployeeAsync(resourceProfile.Id, actorUserId: 1);
 
-		var updatedEmployee = await _context.Employees.FindAsync(employee.Id);
+		var updatedResourceProfile = await _context.ResourceProfiles.FindAsync(resourceProfile.Id);
 		var updatedUser = await _context.Users.FindAsync(user.Id);
 		var allocation = await _context.ProjectAllocations.FindAsync(1L);
 
-		updatedEmployee!.IsActive.Should().BeFalse();
-		updatedEmployee.EmploymentStatus.Should().Be("BENCH");
+		updatedResourceProfile!.IsActive.Should().BeFalse();
+		updatedResourceProfile.EmploymentStatus.Should().Be("BENCH");
 		updatedUser!.IsActive.Should().BeFalse();
 		allocation!.AllocationStatus.Should().Be("ENDED");
 		allocation.AllocationEndDate.Should().Be(DateOnly.FromDateTime(DateTime.UtcNow));
 
-		var audit = await _context.AuditLogs.FirstOrDefaultAsync(item => item.EntityId == employee.Id);
+		var audit = await _context.AuditLogs.FirstOrDefaultAsync(item => item.EntityId == resourceProfile.Id);
 		audit.Should().NotBeNull();
 		audit!.ActionType.Should().Be("DEACTIVATE");
+		audit.EntityName.Should().Be("RESOURCE_PROFILES");
 	}
 
-	private async Task<(Employee employee, User user)> SeedEmployeeWithAllocationAsync()
+	[Fact]
+	public async Task RestoreTimesheetAccessAsync_ForManagersTeamMember_ClearsFrozenFlag()
+	{
+		var (resourceProfile, _) = await SeedResourceProfileWithAllocationAsync();
+		resourceProfile.IsTimesheetFrozen = true;
+		resourceProfile.TimesheetFrozenAt = DateTime.UtcNow;
+		_context.TimesheetComplianceTrackings.Add(new TimesheetComplianceTracking
+		{
+			ResourceProfileId = resourceProfile.Id,
+			WeekStartDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-7),
+			ReminderCount = 2,
+			IsFrozenForWeek = true
+		});
+		await _context.SaveChangesAsync();
+
+		await _resourceProfileService.RestoreTimesheetAccessAsync(resourceProfile.Id, managerUserId: 1);
+
+		var updatedResourceProfile = await _context.ResourceProfiles.FindAsync(resourceProfile.Id);
+		updatedResourceProfile!.IsTimesheetFrozen.Should().BeFalse();
+		updatedResourceProfile.TimesheetFrozenAt.Should().BeNull();
+		(await _context.TimesheetComplianceTrackings.SingleAsync()).IsFrozenForWeek.Should().BeFalse();
+		(await _context.AuditLogs.AnyAsync(log => log.ActionType == "RESTORE_TIMESHEET_ACCESS")).Should().BeTrue();
+	}
+
+	private async Task<(ResourceProfile resourceProfile, User user)> SeedResourceProfileWithAllocationAsync()
 	{
 		var now = DateTime.UtcNow;
 
@@ -84,19 +109,19 @@ public class EmployeeServiceTests : IDisposable
 		_context.Users.AddRange(manager, user);
 		await _context.SaveChangesAsync();
 
-		var employee = new Employee
+		var resourceProfile = new ResourceProfile
 		{
 			Id = 10,
 			UserId = user.Id,
 			ManagerId = manager.Id,
-			EmployeeCode = "EMP-000002",
+			ResourceProfileCode = "EMP-000002",
 			EmploymentStatus = "ALLOCATED",
 			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 
-		_context.Employees.Add(employee);
+		_context.ResourceProfiles.Add(resourceProfile);
 
 		var project = new Project
 		{
@@ -117,7 +142,7 @@ public class EmployeeServiceTests : IDisposable
 		_context.ProjectAllocations.Add(new ProjectAllocation
 		{
 			Id = 1,
-			EmployeeId = employee.Id,
+			ResourceProfileId = resourceProfile.Id,
 			ProjectId = project.Id,
 			AllocationPercentage = 100,
 			AllocationStartDate = DateOnly.FromDateTime(now.AddMonths(-1)),
@@ -129,7 +154,7 @@ public class EmployeeServiceTests : IDisposable
 		});
 
 		await _context.SaveChangesAsync();
-		return (employee, user);
+		return (resourceProfile, user);
 	}
 
 	public void Dispose()

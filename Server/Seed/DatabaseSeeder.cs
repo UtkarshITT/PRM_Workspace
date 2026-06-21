@@ -22,7 +22,7 @@ public static class DatabaseSeeder
 			await SeedAdminAsync(context);
 		}
 
-		await EnsureAdminEmployeeAsync(context);
+		await EnsureAdminResourceProfileAsync(context);
 		await SeedDemoDataIfNeededAsync(context);
 		await SeedDemoProjectsIfNeededAsync(context);
 	}
@@ -47,7 +47,7 @@ public static class DatabaseSeeder
 		await context.SaveChangesAsync();
 	}
 
-	private static async Task EnsureAdminEmployeeAsync(PrmDbContext context)
+	private static async Task EnsureAdminResourceProfileAsync(PrmDbContext context)
 	{
 		var admin = await context.Users.FirstOrDefaultAsync(user => user.Username == "admin");
 		if (admin == null)
@@ -55,17 +55,17 @@ public static class DatabaseSeeder
 			return;
 		}
 
-		var hasEmployee = await context.Employees.AnyAsync(employee => employee.UserId == admin.Id);
-		if (hasEmployee)
+		var hasResourceProfile = await context.ResourceProfiles.AnyAsync(resourceProfile => resourceProfile.UserId == admin.Id);
+		if (hasResourceProfile)
 		{
 			return;
 		}
 
 		var now = DateTime.UtcNow;
-		context.Employees.Add(new Employee
+		context.ResourceProfiles.Add(new ResourceProfile
 		{
 			UserId = admin.Id,
-			EmployeeCode = $"EMP-{admin.Id:D6}",
+			ResourceProfileCode = $"EMP-{admin.Id:D6}",
 			Department = "IT",
 			Designation = "System Administrator",
 			EmploymentStatus = "BENCH",
@@ -116,10 +116,10 @@ public static class DatabaseSeeder
 			context.Users.Add(manager);
 			await context.SaveChangesAsync();
 
-			context.Employees.Add(new Employee
+			context.ResourceProfiles.Add(new ResourceProfile
 			{
 				UserId = manager.Id,
-				EmployeeCode = $"EMP-{manager.Id:D6}",
+				ResourceProfileCode = $"EMP-{manager.Id:D6}",
 				Department = "Delivery",
 				Designation = "Delivery Manager",
 				EmploymentStatus = "BENCH",
@@ -175,11 +175,11 @@ public static class DatabaseSeeder
 
 			var managerId = managers[Math.Min(managerIndex, managers.Count - 1)].Id;
 
-			context.Employees.Add(new Employee
+			context.ResourceProfiles.Add(new ResourceProfile
 			{
 				UserId = employeeUser.Id,
 				ManagerId = managerId,
-				EmployeeCode = $"EMP-{employeeUser.Id:D6}",
+				ResourceProfileCode = $"EMP-{employeeUser.Id:D6}",
 				Department = department,
 				Designation = designation,
 				EmploymentStatus = "BENCH",
@@ -196,7 +196,7 @@ public static class DatabaseSeeder
 
 	private static async Task SeedDemoSkillsAsync(PrmDbContext context)
 	{
-		if (await context.EmployeeSkills.AnyAsync())
+		if (await context.ResourceProfileSkills.AnyAsync())
 		{
 			return;
 		}
@@ -245,27 +245,27 @@ public static class DatabaseSeeder
 
 		foreach (var (username, skillName, proficiency) in assignments)
 		{
-			var employee = await context.Employees
+			var resourceProfile = await context.ResourceProfiles
 				.Include(item => item.User)
 				.FirstOrDefaultAsync(item => item.User.Username == username);
 
-			if (employee == null)
+			if (resourceProfile == null)
 			{
 				continue;
 			}
 
 			var skill = skills[skillName];
-			var exists = await context.EmployeeSkills.AnyAsync(
-				item => item.EmployeeId == employee.Id && item.SkillId == skill.Id);
+			var exists = await context.ResourceProfileSkills.AnyAsync(
+				item => item.ResourceProfileId == resourceProfile.Id && item.SkillId == skill.Id);
 
 			if (exists)
 			{
 				continue;
 			}
 
-			context.EmployeeSkills.Add(new EmployeeSkill
+			context.ResourceProfileSkills.Add(new ResourceProfileSkill
 			{
-				EmployeeId = employee.Id,
+				ResourceProfileId = resourceProfile.Id,
 				SkillId = skill.Id,
 				ProficiencyLevel = proficiency,
 				CreatedAt = now
@@ -367,12 +367,12 @@ public static class DatabaseSeeder
 			return;
 		}
 
-		var employees = await context.Employees
-			.Include(employee => employee.User)
-			.Where(employee => employee.User.Role == Roles.Employee && employee.IsActive)
+		var resourceProfiles = await context.ResourceProfiles
+			.Include(resourceProfile => resourceProfile.User)
+			.Where(resourceProfile => resourceProfile.User.Role == Roles.Employee && resourceProfile.IsActive)
 			.ToListAsync();
 
-		if (employees.Count == 0 || projects.Count < 3)
+		if (resourceProfiles.Count == 0 || projects.Count < 3)
 		{
 			return;
 		}
@@ -380,7 +380,7 @@ public static class DatabaseSeeder
 		var manager = await context.Users.FirstAsync(user => user.Role == Roles.Manager);
 		var now = DateTime.UtcNow;
 
-		var allocations = new (int EmployeeIndex, int ProjectIndex, decimal Percentage, DateOnly Start, DateOnly End)[]
+		var allocations = new (int ResourceProfileIndex, int ProjectIndex, decimal Percentage, DateOnly Start, DateOnly End)[]
 		{
 			(0, 0, 50, new DateOnly(2026, 3, 1), new DateOnly(2026, 6, 30)),
 			(0, 1, 50, new DateOnly(2026, 4, 1), new DateOnly(2026, 7, 31)),
@@ -388,17 +388,17 @@ public static class DatabaseSeeder
 			(2, 2, 75, new DateOnly(2026, 2, 1), new DateOnly(2026, 7, 1))
 		};
 
-		foreach (var (employeeIndex, projectIndex, percentage, start, end) in allocations)
+		foreach (var (resourceProfileIndex, projectIndex, percentage, start, end) in allocations)
 		{
-			if (employeeIndex >= employees.Count || projectIndex >= projects.Count)
+			if (resourceProfileIndex >= resourceProfiles.Count || projectIndex >= projects.Count)
 			{
 				continue;
 			}
 
-			var employee = employees[employeeIndex];
+			var resourceProfile = resourceProfiles[resourceProfileIndex];
 			context.ProjectAllocations.Add(new ProjectAllocation
 			{
-				EmployeeId = employee.Id,
+				ResourceProfileId = resourceProfile.Id,
 				ProjectId = projects[projectIndex].Id,
 				AllocationPercentage = percentage,
 				AllocationStartDate = start,
@@ -409,8 +409,8 @@ public static class DatabaseSeeder
 				UpdatedAt = now
 			});
 
-			employee.EmploymentStatus = "ALLOCATED";
-			employee.UpdatedAt = now;
+			resourceProfile.EmploymentStatus = "ALLOCATED";
+			resourceProfile.UpdatedAt = now;
 		}
 
 		await context.SaveChangesAsync();

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PRM.Server.Constants;
 using PRM.Server.Data;
 using PRM.Server.Exceptions;
 using PRM.Server.Models.DTOs.Users;
@@ -12,6 +13,7 @@ public interface IUserService
 	Task<UserCreatedDto> CreateUserAccountAsync(CreateUserDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<UserListItemDto>> GetAllUsersAsync(CancellationToken cancellationToken = default);
 	Task ResetPasswordAsync(long userId, ResetPasswordDto dto, CancellationToken cancellationToken = default);
+	Task UpdateRoleAsync(long userId, UpdateUserRoleDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task DeactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default);
 	Task ReactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default);
 }
@@ -20,16 +22,16 @@ public class UserService : IUserService
 {
 	private readonly PrmDbContext _context;
 	private readonly IUserRepository _userRepository;
-	private readonly IEmployeeRepository _employeeRepository;
+	private readonly IResourceProfileRepository _resourceProfileRepository;
 
 	public UserService(
 		PrmDbContext context,
 		IUserRepository userRepository,
-		IEmployeeRepository employeeRepository)
+		IResourceProfileRepository resourceProfileRepository)
 	{
 		_context = context;
 		_userRepository = userRepository;
-		_employeeRepository = employeeRepository;
+		_resourceProfileRepository = resourceProfileRepository;
 	}
 
 	public async Task<UserCreatedDto> CreateUserAccountAsync(
@@ -68,17 +70,17 @@ public class UserService : IUserService
 			_context.Users.Add(user);
 			await _context.SaveChangesAsync(cancellationToken);
 
-			var employee = new Employee
+			var resourceProfile = new ResourceProfile
 			{
 				UserId = user.Id,
-				EmployeeCode = $"EMP-{user.Id:D6}",
+				ResourceProfileCode = $"RES-{user.Id:D6}",
 				EmploymentStatus = "BENCH",
 				IsActive = true,
 				CreatedAt = now,
 				UpdatedAt = now
 			};
 
-			_context.Employees.Add(employee);
+			_context.ResourceProfiles.Add(resourceProfile);
 
 			_context.AuditLogs.Add(new AuditLog
 			{
@@ -96,8 +98,8 @@ public class UserService : IUserService
 			return new UserCreatedDto
 			{
 				UserId = user.Id,
-				EmployeeId = employee.Id,
-				EmployeeCode = employee.EmployeeCode
+				EmployeeId = resourceProfile.Id,
+				EmployeeCode = resourceProfile.ResourceProfileCode
 			};
 		}
 		catch
@@ -137,6 +139,47 @@ public class UserService : IUserService
 		await _userRepository.SaveChangesAsync(cancellationToken);
 	}
 
+	public async Task UpdateRoleAsync(
+		long userId,
+		UpdateUserRoleDto dto,
+		long actorUserId,
+		CancellationToken cancellationToken = default)
+	{
+		var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+
+		if (user == null)
+		{
+			throw new NotFoundException($"User with ID {userId} was not found.");
+		}
+
+		if (!Roles.All.Contains(dto.Role))
+		{
+			throw new ValidationException($"Role must be one of: {string.Join(", ", Roles.All)}.");
+		}
+
+		if (user.Role == dto.Role)
+		{
+			throw new ValidationException("User already has the selected role.");
+		}
+
+		var oldRole = user.Role;
+		user.Role = dto.Role;
+		user.UpdatedAt = DateTime.UtcNow;
+
+		_context.AuditLogs.Add(new AuditLog
+		{
+			ActorUserId = actorUserId,
+			EntityName = "USERS",
+			EntityId = user.Id,
+			ActionType = "UPDATE_ROLE",
+			OldValues = $"{{\"role\":\"{oldRole}\"}}",
+			NewValues = $"{{\"role\":\"{user.Role}\"}}",
+			CreatedAt = DateTime.UtcNow
+		});
+
+		await _context.SaveChangesAsync(cancellationToken);
+	}
+
 	public async Task DeactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default)
 	{
 		var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
@@ -154,11 +197,11 @@ public class UserService : IUserService
 		user.IsActive = false;
 		user.UpdatedAt = DateTime.UtcNow;
 
-		var employee = await _employeeRepository.GetByUserIdAsync(userId, cancellationToken);
-		if (employee != null)
+		var resourceProfile = await _resourceProfileRepository.GetByUserIdAsync(userId, cancellationToken);
+		if (resourceProfile != null)
 		{
-			employee.IsActive = false;
-			employee.UpdatedAt = DateTime.UtcNow;
+			resourceProfile.IsActive = false;
+			resourceProfile.UpdatedAt = DateTime.UtcNow;
 		}
 
 		await _userRepository.SaveChangesAsync(cancellationToken);
@@ -181,11 +224,11 @@ public class UserService : IUserService
 		user.IsActive = true;
 		user.UpdatedAt = DateTime.UtcNow;
 
-		var employee = await _employeeRepository.GetByUserIdAsync(userId, cancellationToken);
-		if (employee != null)
+		var resourceProfile = await _resourceProfileRepository.GetByUserIdAsync(userId, cancellationToken);
+		if (resourceProfile != null)
 		{
-			employee.IsActive = true;
-			employee.UpdatedAt = DateTime.UtcNow;
+			resourceProfile.IsActive = true;
+			resourceProfile.UpdatedAt = DateTime.UtcNow;
 		}
 
 		await _userRepository.SaveChangesAsync(cancellationToken);

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using PRM.Server.Constants;
 using PRM.Server.Data;
 using PRM.Server.Exceptions;
+using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Projects;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories;
@@ -35,13 +36,14 @@ public class ProjectServiceTests : IDisposable
 	public async Task CreateProjectAsync_WithValidInput_CreatesProjectWithCode()
 	{
 		var managerId = await SeedManagerAsync();
+		var startDate = DateOnly.FromDateTime(DateTime.Today);
 
 		var result = await _projectService.CreateProjectAsync(new CreateProjectDto
 		{
 			ProjectName = "Alpha Portal",
 			Description = "Customer portal",
-			StartDate = new DateOnly(2026, 1, 1),
-			EndDate = new DateOnly(2026, 6, 30),
+			StartDate = startDate,
+			EndDate = startDate.AddMonths(6),
 			ProjectStatus = ProjectStatuses.Active,
 			ManagerUserId = managerId,
 			TotalStoryPoints = 120
@@ -92,6 +94,34 @@ public class ProjectServiceTests : IDisposable
 
 		await act.Should().ThrowAsync<ValidationException>()
 			.WithMessage("*your own projects*");
+	}
+
+	[Fact]
+	public async Task EvaluateAllProjectsHealthAsync_WithOverdueMilestone_SetsAmber()
+	{
+		var projectId = await SeedActiveProjectWithMilestoneAsync(
+			dueDate: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-3),
+			milestoneStatus: MilestoneStatuses.InProgress);
+
+		await _projectService.EvaluateAllProjectsHealthAsync();
+
+		var project = await _context.Projects.FindAsync(projectId);
+		project!.HealthStatus.Should().Be("AMBER");
+	}
+
+	[Fact]
+	public async Task EvaluateAllProjectsHealthAsync_WithMultipleFlags_SetsRed()
+	{
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		var projectId = await SeedActiveProjectWithMilestoneAsync(
+			dueDate: today.AddDays(-3),
+			milestoneStatus: MilestoneStatuses.InProgress,
+			endDate: today.AddDays(14));
+
+		await _projectService.EvaluateAllProjectsHealthAsync();
+
+		var project = await _context.Projects.FindAsync(projectId);
+		project!.HealthStatus.Should().Be("RED");
 	}
 
 	[Fact]
@@ -180,6 +210,48 @@ public class ProjectServiceTests : IDisposable
 		};
 
 		_context.Projects.Add(project);
+		await _context.SaveChangesAsync();
+		return project.Id;
+	}
+
+	private async Task<long> SeedActiveProjectWithMilestoneAsync(
+		DateOnly dueDate,
+		string milestoneStatus,
+		DateOnly? endDate = null)
+	{
+		var managerId = await SeedManagerAsync();
+		var now = DateTime.UtcNow;
+		var projectEnd = endDate ?? new DateOnly(2026, 12, 31);
+		var project = new Project
+		{
+			ProjectCode = "PRJ-HEALTH",
+			ProjectName = "Health Test Project",
+			StartDate = new DateOnly(2026, 1, 1),
+			EndDate = projectEnd,
+			ProjectStatus = ProjectStatuses.Active,
+			HealthStatus = "GREEN",
+			TotalStoryPoints = 100,
+			ManagerUserId = managerId,
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		_context.Projects.Add(project);
+		await _context.SaveChangesAsync();
+
+		_context.ProjectMilestones.Add(new ProjectMilestone
+		{
+			ProjectId = project.Id,
+			MilestoneTitle = "Backend API",
+			DueDate = dueDate,
+			StoryPoints = 40,
+			SortOrder = 1,
+			MilestoneStatus = milestoneStatus,
+			CreatedAt = now,
+			UpdatedAt = now
+		});
+
 		await _context.SaveChangesAsync();
 		return project.Id;
 	}

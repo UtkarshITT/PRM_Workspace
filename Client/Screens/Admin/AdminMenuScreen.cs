@@ -8,17 +8,20 @@ public class AdminMenuScreen
 	private readonly ManageEmployeesScreen _manageEmployeesScreen;
 	private readonly ManageProjectsScreen _manageProjectsScreen;
 	private readonly ViewAllocationsScreen _viewAllocationsScreen;
+	private readonly SystemConfigScreen _systemConfigScreen;
 
 	public AdminMenuScreen(
 		ManageUsersScreen manageUsersScreen,
 		ManageEmployeesScreen manageEmployeesScreen,
 		ManageProjectsScreen manageProjectsScreen,
-		ViewAllocationsScreen viewAllocationsScreen)
+		ViewAllocationsScreen viewAllocationsScreen,
+		SystemConfigScreen systemConfigScreen)
 	{
 		_manageUsersScreen = manageUsersScreen;
 		_manageEmployeesScreen = manageEmployeesScreen;
 		_manageProjectsScreen = manageProjectsScreen;
 		_viewAllocationsScreen = viewAllocationsScreen;
+		_systemConfigScreen = systemConfigScreen;
 	}
 
 	public async Task ShowAsync()
@@ -28,15 +31,15 @@ public class AdminMenuScreen
 		while (running)
 		{
 			Console.Clear();
-			ConsoleHelper.WriteHeader($"Admin Panel — Welcome, {SessionStore.FullName}");
+			ConsoleHelper.WriteWelcomeHeader("Admin Panel", SessionStore.FullName);
 			Console.WriteLine("  1. Manage Employees");
 			Console.WriteLine("  2. Manage Projects");
 			Console.WriteLine("  3. View All Allocations");
 			Console.WriteLine("  4. Manage Users");
-			Console.WriteLine("  5. System Configuration (Phase 9)");
-			Console.WriteLine("  0. Logout");
+			Console.WriteLine("  5. System Configuration");
+			Console.WriteLine("  6. Logout");
 			Console.WriteLine();
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -52,7 +55,10 @@ public class AdminMenuScreen
 				case "4":
 					await _manageUsersScreen.ShowAsync();
 					break;
-				case "0":
+				case "5":
+					await _systemConfigScreen.ShowAsync();
+					break;
+				case "6":
 					SessionStore.Clear();
 					running = false;
 					break;

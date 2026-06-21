@@ -27,7 +27,7 @@ public class AllocationServiceTests : IDisposable
 		_allocationService = new AllocationService(
 			_context,
 			new AllocationRepository(_context),
-			new EmployeeRepository(_context),
+			new ResourceProfileRepository(_context),
 			new ProjectRepository(_context));
 	}
 
@@ -35,14 +35,15 @@ public class AllocationServiceTests : IDisposable
 	public async Task CreateAllocationAsync_WithOverlappingUtilization_ThrowsOverAllocation()
 	{
 		var (managerId, employeeId, projectId) = await SeedTeamAndProjectAsync(existingUtilization: 60);
+		var startDate = DateOnly.FromDateTime(DateTime.Today);
 
 		var act = () => _allocationService.CreateAllocationAsync(new CreateAllocationDto
 		{
 			EmployeeId = employeeId,
 			ProjectId = projectId,
 			AllocationPercentage = 50,
-			AllocationStartDate = new DateOnly(2026, 3, 1),
-			AllocationEndDate = new DateOnly(2026, 6, 30)
+			AllocationStartDate = startDate,
+			AllocationEndDate = startDate.AddMonths(3)
 		}, managerId);
 
 		await act.Should().ThrowAsync<OverAllocationException>();
@@ -52,14 +53,15 @@ public class AllocationServiceTests : IDisposable
 	public async Task CreateAllocationAsync_WithValidInput_CreatesAllocation()
 	{
 		var (managerId, employeeId, projectId) = await SeedTeamAndProjectAsync(existingUtilization: 0);
+		var startDate = DateOnly.FromDateTime(DateTime.Today);
 
 		var result = await _allocationService.CreateAllocationAsync(new CreateAllocationDto
 		{
 			EmployeeId = employeeId,
 			ProjectId = projectId,
 			AllocationPercentage = 50,
-			AllocationStartDate = new DateOnly(2026, 3, 1),
-			AllocationEndDate = new DateOnly(2026, 6, 30)
+			AllocationStartDate = startDate,
+			AllocationEndDate = startDate.AddMonths(3)
 		}, managerId);
 
 		result.AllocationStatus.Should().Be("ACTIVE");
@@ -73,10 +75,10 @@ public class AllocationServiceTests : IDisposable
 
 		await _allocationService.EndAllocationAsync(allocationId, managerId);
 
-		var employee = await _context.Employees.FindAsync(employeeId);
+		var resourceProfile = await _context.ResourceProfiles.FindAsync(employeeId);
 		var allocation = await _context.ProjectAllocations.FindAsync(allocationId);
 
-		employee!.EmploymentStatus.Should().Be("BENCH");
+		resourceProfile!.EmploymentStatus.Should().Be("BENCH");
 		allocation!.AllocationStatus.Should().Be("ENDED");
 	}
 
@@ -120,25 +122,26 @@ public class AllocationServiceTests : IDisposable
 		_context.Users.AddRange(manager, employeeUser);
 		await _context.SaveChangesAsync();
 
-		var employee = new Employee
+		var resourceProfile = new ResourceProfile
 		{
 			UserId = employeeUser.Id,
 			ManagerId = manager.Id,
-			EmployeeCode = "EMP-000002",
+			ResourceProfileCode = "EMP-000002",
 			EmploymentStatus = "BENCH",
 			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 
-		_context.Employees.Add(employee);
+		_context.ResourceProfiles.Add(resourceProfile);
 
+		var startDate = DateOnly.FromDateTime(DateTime.Today);
 		var project = new Project
 		{
 			ProjectCode = "PRJ-000001",
 			ProjectName = "Alpha Portal",
-			StartDate = new DateOnly(2026, 1, 1),
-			EndDate = new DateOnly(2026, 12, 31),
+			StartDate = startDate,
+			EndDate = startDate.AddMonths(6),
 			ProjectStatus = ProjectStatuses.Active,
 			TotalStoryPoints = 100,
 			ManagerUserId = manager.Id,
@@ -154,11 +157,11 @@ public class AllocationServiceTests : IDisposable
 		{
 			_context.ProjectAllocations.Add(new ProjectAllocation
 			{
-				EmployeeId = employee.Id,
+				ResourceProfileId = resourceProfile.Id,
 				ProjectId = project.Id,
 				AllocationPercentage = existingUtilization,
-				AllocationStartDate = new DateOnly(2026, 3, 1),
-				AllocationEndDate = new DateOnly(2026, 6, 30),
+				AllocationStartDate = startDate,
+				AllocationEndDate = startDate.AddMonths(3),
 				AllocationStatus = "ACTIVE",
 				AllocatedByManagerId = manager.Id,
 				CreatedAt = now,
@@ -167,7 +170,7 @@ public class AllocationServiceTests : IDisposable
 			await _context.SaveChangesAsync();
 		}
 
-		return (manager.Id, employee.Id, project.Id);
+		return (manager.Id, resourceProfile.Id, project.Id);
 	}
 
 	private async Task<(long managerId, long employeeId, long projectId, long allocationId)> SeedActiveAllocationAsync()

@@ -80,6 +80,7 @@ public class ResourceDashboardScreen
 		ConsoleHelper.WriteHeader(detail.FullName);
 		Console.WriteLine($"Department     : {detail.Department ?? "-"}");
 		Console.WriteLine($"Current Status : {detail.EmploymentStatus} ({detail.CurrentUtilizationPercent:0}%)");
+		Console.WriteLine($"Timesheet Lock : {(detail.IsTimesheetFrozen ? "FROZEN" : "Active")}");
 		Console.WriteLine($"Profile Skills : {string.Join(", ", detail.Skills)}");
 		Console.WriteLine();
 		Console.WriteLine("Active Allocations:");
@@ -105,6 +106,25 @@ public class ResourceDashboardScreen
 		Console.WriteLine(detail.RecentActivityTags.Count == 0
 			? "  (none)"
 			: $"  {string.Join(", ", detail.RecentActivityTags)}");
+
+		if (detail.IsTimesheetFrozen)
+		{
+			Console.WriteLine();
+			var confirm = ConsoleHelper.ReadInput("Restore timesheet access now? (Y/N): ");
+			if (confirm.Equals("Y", StringComparison.OrdinalIgnoreCase))
+			{
+				var restore = await _managerClient.RestoreTimesheetAccessAsync(employeeId);
+				if (restore.Success)
+				{
+					ConsoleHelper.WriteSuccess("Timesheet access restored.");
+				}
+				else
+				{
+					WriteApiError(restore);
+					return;
+				}
+			}
+		}
 
 		ConsoleHelper.PressEnterToContinue();
 	}

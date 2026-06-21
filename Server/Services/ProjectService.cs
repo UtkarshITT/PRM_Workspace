@@ -22,6 +22,7 @@ public interface IProjectService
 		long projectId,
 		long managerUserId,
 		CancellationToken cancellationToken = default);
+	Task EvaluateAllProjectsHealthAsync(CancellationToken cancellationToken = default);
 }
 
 public class ProjectService : IProjectService
@@ -49,6 +50,7 @@ public class ProjectService : IProjectService
 		CreateProjectDto dto,
 		CancellationToken cancellationToken = default)
 	{
+		ValidateProjectDates(dto.StartDate, dto.EndDate, allowPastStartDate: false);
 		await ValidateManagerAsync(dto.ManagerUserId, cancellationToken);
 
 		var now = DateTime.UtcNow;
@@ -97,6 +99,7 @@ public class ProjectService : IProjectService
 		}
 
 		await ValidateManagerAsync(dto.ManagerUserId, cancellationToken);
+		ValidateProjectDates(dto.StartDate, dto.EndDate, allowPastStartDate: dto.StartDate == project.StartDate);
 		ValidateMilestonesWithinProjectDates(project.Milestones, dto.StartDate, dto.EndDate);
 
 		project.ProjectName = dto.ProjectName;
@@ -223,13 +226,13 @@ public class ProjectService : IProjectService
 		foreach (var allocation in activeAllocations)
 		{
 			var expectedHours = allocation.AllocationPercentage / 100m * maxWeeklyHours;
-			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectEmployeeWeekAsync(
+			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectResourceProfileWeekAsync(
 				project.Id,
-				allocation.EmployeeId,
+				allocation.ResourceProfileId,
 				lastWeekStart,
 				cancellationToken);
 
-			lastWeekHours.Add((allocation.Employee.User.FullName, loggedHours, expectedHours));
+			lastWeekHours.Add((allocation.ResourceProfile.User.FullName, loggedHours, expectedHours));
 		}
 
 		var riskFlags = ProjectHealthEvaluator.EvaluateRiskFlags(project, activeAllocations, lastWeekHours);
@@ -252,15 +255,45 @@ public class ProjectService : IProjectService
 					IsOverdue = milestone.DueDate < today && milestone.MilestoneStatus != MilestoneStatuses.Done
 				}).ToList(),
 			AllocatedResources = activeAllocations
-				.OrderBy(allocation => allocation.Employee.User.FullName)
+				.OrderBy(allocation => allocation.ResourceProfile.User.FullName)
 				.Select(allocation => new ProjectResourceDto
 				{
-					EmployeeName = allocation.Employee.User.FullName,
+					EmployeeName = allocation.ResourceProfile.User.FullName,
 					AllocationPercentage = allocation.AllocationPercentage,
 					AllocationStartDate = allocation.AllocationStartDate,
 					AllocationEndDate = allocation.AllocationEndDate
 				}).ToList()
 		};
+	}
+
+	public async Task EvaluateAllProjectsHealthAsync(CancellationToken cancellationToken = default)
+	{
+		var projects = await _projectRepository.GetActiveProjectsWithMilestonesAsync(cancellationToken);
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(today);
+		var lastWeekEnd = WeekHelper.GetWeekEnd(lastWeekStart);
+		var maxWeeklyHours = await GetMaxWeeklyHoursAsync(cancellationToken);
+
+		foreach (var project in projects)
+		{
+			var expectedHours = HealthStatusCalculator.CalculateExpectedWeeklyHours(
+				project.ProjectAllocations,
+				lastWeekStart,
+				lastWeekEnd,
+				maxWeeklyHours);
+			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectWeekAsync(
+				project.Id,
+				lastWeekStart,
+				cancellationToken);
+			var flagCount = HealthStatusCalculator.CountHealthFlags(
+				project,
+				loggedHours,
+				expectedHours,
+				today);
+			var healthStatus = HealthStatusCalculator.FromFlagCount(flagCount);
+
+			await _projectRepository.UpdateHealthStatusAsync(project.Id, healthStatus, cancellationToken);
+		}
 	}
 
 	private async Task<decimal> GetMaxWeeklyHoursAsync(CancellationToken cancellationToken)
@@ -309,6 +342,20 @@ public class ProjectService : IProjectService
 		}
 	}
 
+	private static void ValidateProjectDates(DateOnly startDate, DateOnly endDate, bool allowPastStartDate)
+	{
+		var today = DateOnly.FromDateTime(DateTime.Today);
+		if (!allowPastStartDate && startDate < today)
+		{
+			throw new ValidationException("Project start date cannot be in the past.");
+		}
+
+		if (endDate < startDate)
+		{
+			throw new ValidationException("Project end date cannot be before start date.");
+		}
+	}
+
 	private static void ValidateMilestonesWithinProjectDates(
 		IEnumerable<ProjectMilestone> milestones,
 		DateOnly newStart,
@@ -335,7 +382,10 @@ public class ProjectService : IProjectService
 			Id = project.Id,
 			ProjectCode = project.ProjectCode,
 			ProjectName = project.ProjectName,
+			Description = project.Description,
 			ManagerName = project.ManagerUser.FullName,
+			ManagerUserId = project.ManagerUserId,
+			StartDate = project.StartDate,
 			EndDate = project.EndDate,
 			ProjectStatus = project.ProjectStatus,
 			StoryPointsDone = storyPointsDone,

@@ -26,7 +26,7 @@ public class UserServiceTests : IDisposable
 		_userService = new UserService(
 			_context,
 			new UserRepository(_context),
-			new EmployeeRepository(_context));
+			new ResourceProfileRepository(_context));
 	}
 
 	[Fact]
@@ -45,11 +45,11 @@ public class UserServiceTests : IDisposable
 
 		result.UserId.Should().BeGreaterThan(0);
 		result.EmployeeId.Should().BeGreaterThan(0);
-		result.EmployeeCode.Should().Be($"EMP-{result.UserId:D6}");
+		result.EmployeeCode.Should().Be($"RES-{result.UserId:D6}");
 
-		var employee = await _context.Employees.FirstOrDefaultAsync(item => item.UserId == result.UserId);
-		employee.Should().NotBeNull();
-		employee!.EmploymentStatus.Should().Be("BENCH");
+		var resourceProfile = await _context.ResourceProfiles.FirstOrDefaultAsync(item => item.UserId == result.UserId);
+		resourceProfile.Should().NotBeNull();
+		resourceProfile!.EmploymentStatus.Should().Be("BENCH");
 
 		var audit = await _context.AuditLogs.FirstOrDefaultAsync(item => item.EntityId == result.UserId);
 		audit.Should().NotBeNull();

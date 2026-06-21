@@ -21,6 +21,9 @@ public class AdminClient
 	public Task<ApiResponse<object>> ResetPasswordAsync(long userId, ResetPasswordRequest request) =>
 		_restClient.PutAsync<object>($"/api/users/{userId}/reset-password", request, requireAuth: true);
 
+	public Task<ApiResponse<object>> UpdateUserRoleAsync(long userId, UpdateUserRoleRequest request) =>
+		_restClient.PutAsync<object>($"/api/users/{userId}/role", request, requireAuth: true);
+
 	public Task<ApiResponse<object>> DeactivateUserAsync(long userId) =>
 		_restClient.PutAsync<object>($"/api/users/{userId}/deactivate", new { }, requireAuth: true);
 
@@ -102,4 +105,13 @@ public class AdminClient
 
 		return _restClient.GetAsync<List<AllocationListItem>>(path, requireAuth: true);
 	}
+
+	public Task<ApiResponse<List<SystemConfigItem>>> GetSystemConfigAsync() =>
+		_restClient.GetAsync<List<SystemConfigItem>>("/api/system-config", requireAuth: true);
+
+	public Task<ApiResponse<List<SystemConfigItem>>> UpdateSystemConfigAsync(UpdateSystemConfigRequest request) =>
+		_restClient.PutAsync<List<SystemConfigItem>>("/api/system-config", request, requireAuth: true);
+
+	public Task<ApiResponse<List<NotificationLogItem>>> GetNotificationLogsAsync(int take = 50) =>
+		_restClient.GetAsync<List<NotificationLogItem>>($"/api/notifications/logs?take={take}", requireAuth: true);
 }

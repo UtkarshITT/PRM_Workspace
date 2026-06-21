@@ -9,6 +9,8 @@ public class EmployeeListItemDto
 	public string? Designation { get; set; }
 	public string EmploymentStatus { get; set; } = string.Empty;
 	public bool IsActive { get; set; }
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 	public long? ManagerId { get; set; }
 	public string? ManagerName { get; set; }
 	public IReadOnlyList<string> Skills { get; set; } = [];

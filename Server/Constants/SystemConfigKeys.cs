@@ -10,6 +10,8 @@ public static class SystemConfigKeys
 	public const string LlmApiKey = "llm_api_key";
 	public const string SchedulerIntervalHours = "scheduler_interval_hours";
 	public const string MaxWeeklyHours = "max_weekly_hours";
+	public const string EmailConsoleEnabled = "email_console_enabled";
+	public const string EmailSmtpEnabled = "email_smtp_enabled";
 
 	public static readonly IReadOnlySet<string> All =
 		new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -17,6 +19,8 @@ public static class SystemConfigKeys
 			LlmProvider,
 			LlmApiKey,
 			SchedulerIntervalHours,
-			MaxWeeklyHours
+			MaxWeeklyHours,
+			EmailConsoleEnabled,
+			EmailSmtpEnabled
 		};
 }

@@ -14,5 +14,5 @@ public class User
 	public DateTime CreatedAt { get; set; }
 	public DateTime UpdatedAt { get; set; }
 
-	public Employee? Employee { get; set; }
+	public ResourceProfile? ResourceProfile { get; set; }
 }

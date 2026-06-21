@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using PRM.Server.Constants;
 using PRM.Server.Data;
+using PRM.Server.Helpers;
 using PRM.Server.Exceptions;
 using PRM.Server.Models.DTOs.Timesheets;
 using PRM.Server.Models.Entities;
@@ -31,7 +32,7 @@ public class TimesheetServiceTests : IDisposable
 			new AllocationRepository(_context),
 			new ActivityTagRepository(_context),
 			new SystemConfigRepository(_context),
-			new EmployeeRepository(_context),
+			new ResourceProfileRepository(_context),
 			new ProjectRepository(_context));
 	}
 
@@ -101,6 +102,31 @@ public class TimesheetServiceTests : IDisposable
 	}
 
 	[Fact]
+	public async Task MarkMissedTimesheetsAsync_CreatesMissed_WhenNoSubmission()
+	{
+		var employeeId = await SeedEmployeeWithAllocationForLastWeekAsync();
+
+		var created = await _timesheetService.MarkMissedTimesheetsAsync();
+
+		created.Should().Be(1);
+		var timesheet = await _context.Timesheets.FirstAsync(timesheet => timesheet.ResourceProfileId == employeeId);
+		timesheet.Status.Should().Be("MISSED");
+		timesheet.TotalHours.Should().Be(0);
+	}
+
+	[Fact]
+	public async Task MarkMissedTimesheetsAsync_IsIdempotent()
+	{
+		var employeeId = await SeedEmployeeWithAllocationForLastWeekAsync();
+
+		await _timesheetService.MarkMissedTimesheetsAsync();
+		var secondRun = await _timesheetService.MarkMissedTimesheetsAsync();
+
+		secondRun.Should().Be(0);
+		(await _context.Timesheets.CountAsync(timesheet => timesheet.ResourceProfileId == employeeId)).Should().Be(1);
+	}
+
+	[Fact]
 	public async Task SubmitTimesheetAsync_TotalHoursExceedMax_ThrowsValidationException()
 	{
 		var (employeeId, projectId, tagIds) = await SeedEmployeeWithAllocationAsync(allocationPercent: 100);
@@ -133,6 +159,20 @@ public class TimesheetServiceTests : IDisposable
 			.WithMessage("*maximum weekly hours*");
 	}
 
+	[Fact]
+	public async Task SubmitTimesheetAsync_WhenTimesheetAccessFrozen_ThrowsValidationException()
+	{
+		var (employeeId, projectId, tagIds) = await SeedEmployeeWithAllocationAsync();
+		var resourceProfile = await _context.ResourceProfiles.FindAsync(employeeId);
+		resourceProfile!.IsTimesheetFrozen = true;
+		await _context.SaveChangesAsync();
+
+		var act = () => _timesheetService.SubmitTimesheetAsync(employeeId, CreateValidDto(projectId, tagIds));
+
+		await act.Should().ThrowAsync<ValidationException>()
+			.WithMessage("*frozen*");
+	}
+
 	private static SubmitTimesheetDto CreateValidDto(
 		long projectId,
 		IReadOnlyList<long> tagIds,
@@ -150,6 +190,12 @@ public class TimesheetServiceTests : IDisposable
 				}
 			]
 		};
+
+	private async Task<long> SeedEmployeeWithAllocationForLastWeekAsync()
+	{
+		var (employeeId, _, _) = await SeedEmployeeWithAllocationAsync();
+		return employeeId;
+	}
 
 	private async Task<(long EmployeeId, long ProjectId, IReadOnlyList<long> TagIds)> SeedEmployeeWithAllocationAsync(
 		decimal allocationPercent = 100)
@@ -182,18 +228,18 @@ public class TimesheetServiceTests : IDisposable
 		_context.Users.AddRange(manager, employeeUser);
 		await _context.SaveChangesAsync();
 
-		var employee = new Employee
+		var resourceProfile = new ResourceProfile
 		{
 			UserId = employeeUser.Id,
 			ManagerId = manager.Id,
-			EmployeeCode = "EMP-000001",
+			ResourceProfileCode = "EMP-000001",
 			EmploymentStatus = "ALLOCATED",
 			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		};
 
-		_context.Employees.Add(employee);
+		_context.ResourceProfiles.Add(resourceProfile);
 		await _context.SaveChangesAsync();
 
 		var project = new Project
@@ -233,13 +279,14 @@ public class TimesheetServiceTests : IDisposable
 			UpdatedAt = now
 		});
 
+		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
 		_context.ProjectAllocations.Add(new ProjectAllocation
 		{
-			EmployeeId = employee.Id,
+			ResourceProfileId = resourceProfile.Id,
 			ProjectId = project.Id,
 			AllocationPercentage = allocationPercent,
-			AllocationStartDate = new DateOnly(2026, 3, 1),
-			AllocationEndDate = new DateOnly(2026, 6, 30),
+			AllocationStartDate = lastWeekStart.AddMonths(-1),
+			AllocationEndDate = lastWeekStart.AddMonths(2),
 			AllocationStatus = "ACTIVE",
 			AllocatedByManagerId = manager.Id,
 			CreatedAt = now,
@@ -247,7 +294,7 @@ public class TimesheetServiceTests : IDisposable
 		});
 
 		await _context.SaveChangesAsync();
-		return (employee.Id, project.Id, new List<long> { devTag.Id });
+		return (resourceProfile.Id, project.Id, new List<long> { devTag.Id });
 	}
 
 	private async Task<long> SeedSecondProjectAsync(long employeeId)
@@ -272,7 +319,7 @@ public class TimesheetServiceTests : IDisposable
 		_context.Projects.Add(project);
 		_context.ProjectAllocations.Add(new ProjectAllocation
 		{
-			EmployeeId = employeeId,
+			ResourceProfileId = employeeId,
 			ProjectId = project.Id,
 			AllocationPercentage = 100,
 			AllocationStartDate = new DateOnly(2026, 3, 1),
