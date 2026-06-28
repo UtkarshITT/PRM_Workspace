@@ -16,6 +16,4 @@ public class UpdateSystemConfigDto
 	public string? LlmApiKey { get; set; }
 	public int? SchedulerIntervalHours { get; set; }
 	public int? MaxWeeklyHours { get; set; }
-	public bool? EmailConsoleEnabled { get; set; }
-	public bool? EmailSmtpEnabled { get; set; }
 }

@@ -25,9 +25,7 @@ public class SystemConfigService : ISystemConfigService
 		SystemConfigKeys.LlmProvider,
 		SystemConfigKeys.LlmApiKey,
 		SystemConfigKeys.SchedulerIntervalHours,
-		SystemConfigKeys.MaxWeeklyHours,
-		SystemConfigKeys.EmailConsoleEnabled,
-		SystemConfigKeys.EmailSmtpEnabled
+		SystemConfigKeys.MaxWeeklyHours
 	];
 
 	private readonly ISystemConfigRepository _systemConfigRepository;
@@ -102,28 +100,6 @@ public class SystemConfigService : ISystemConfigService
 				configs,
 				SystemConfigKeys.MaxWeeklyHours,
 				dto.MaxWeeklyHours.Value.ToString(),
-				adminUserId,
-				now,
-				changedKeys);
-		}
-
-		if (dto.EmailConsoleEnabled.HasValue)
-		{
-			UpdateValue(
-				configs,
-				SystemConfigKeys.EmailConsoleEnabled,
-				ToConfigBool(dto.EmailConsoleEnabled.Value),
-				adminUserId,
-				now,
-				changedKeys);
-		}
-
-		if (dto.EmailSmtpEnabled.HasValue)
-		{
-			UpdateValue(
-				configs,
-				SystemConfigKeys.EmailSmtpEnabled,
-				ToConfigBool(dto.EmailSmtpEnabled.Value),
 				adminUserId,
 				now,
 				changedKeys);
@@ -217,8 +193,6 @@ public class SystemConfigService : ISystemConfigService
 			? "Custom"
 			: "Gemini";
 	}
-
-	private static string ToConfigBool(bool value) => value.ToString().ToLowerInvariant();
 
 	private static string BuildAuditJson(IEnumerable<string> changedKeys)
 	{

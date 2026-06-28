@@ -53,14 +53,59 @@ public class CustomGenerateClientTests
 		client.Should().BeOfType<CustomGenerateClient>();
 	}
 
-	private static IConfiguration BuildConfiguration()
+	[Fact]
+	public async Task GenerateResponseAsync_WithRemoteHttpAndAllowInsecureHttp_PostsRequest()
 	{
-		return new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
+		var handler = new CapturingHandler("""{"response":"ok"}""");
+		var httpClient = new HttpClient(handler)
+		{
+			BaseAddress = new Uri("http://164.52.211.238/api/generate")
+		};
+		var client = new CustomGenerateClient(
+			httpClient,
+			BuildConfiguration(new Dictionary<string, string?>
 			{
-				["Llm:Custom:BaseUrl"] = "http://localhost:11434",
-				["Llm:Custom:Model"] = "gemma3:12b-it-q8_0"
-			})
+				["Llm:Custom:AllowInsecureHttp"] = "true"
+			}));
+
+		var result = await client.GenerateResponseAsync("Hello", "test-key");
+
+		result.Should().Be("ok");
+		handler.RequestUri.Should().Be("http://164.52.211.238/api/generate");
+	}
+
+	[Fact]
+	public async Task GenerateResponseAsync_WithRemoteHttpWithoutAllowInsecureHttp_Throws()
+	{
+		var httpClient = new HttpClient(new CapturingHandler("""{"response":"ok"}"""))
+		{
+			BaseAddress = new Uri("http://164.52.211.238/api/generate")
+		};
+		var client = new CustomGenerateClient(
+			httpClient,
+			BuildConfiguration());
+
+		Func<Task> act = async () => await client.GenerateResponseAsync("Hello", "test-key");
+
+		await act.Should().ThrowAsync<InvalidOperationException>()
+			.WithMessage("*AllowInsecureHttp*");
+	}
+
+	private static IConfiguration BuildConfiguration(Dictionary<string, string?>? overrides = null)
+	{
+		var values = new Dictionary<string, string?>
+		{
+			["Llm:Custom:BaseUrl"] = "http://localhost:11434",
+			["Llm:Custom:Model"] = "gemma3:12b-it-q8_0"
+		};
+
+		foreach (var (key, value) in overrides ?? [])
+		{
+			values[key] = value;
+		}
+
+		return new ConfigurationBuilder()
+			.AddInMemoryCollection(values)
 			.Build();
 	}
 

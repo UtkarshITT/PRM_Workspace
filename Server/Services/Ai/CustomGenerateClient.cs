@@ -62,15 +62,30 @@ public class CustomGenerateClient : ILlmClient
 			throw new InvalidOperationException("Custom LLM base URL is not configured.");
 		}
 
-		if (_httpClient.BaseAddress.Scheme == Uri.UriSchemeHttp && !_httpClient.BaseAddress.IsLoopback)
+		if (_httpClient.BaseAddress.Scheme == Uri.UriSchemeHttp
+			&& !_httpClient.BaseAddress.IsLoopback
+			&& !IsInsecureHttpExplicitlyAllowed())
 		{
-			throw new InvalidOperationException("Custom LLM base URL must use HTTPS unless it points to localhost.");
+			throw new InvalidOperationException(
+				"Custom LLM base URL must use HTTPS unless it points to localhost or Llm:Custom:AllowInsecureHttp is enabled.");
 		}
 
 		var path = _httpClient.BaseAddress.AbsolutePath.TrimEnd('/');
 		return path.EndsWith("/api/generate", StringComparison.OrdinalIgnoreCase)
 			? _httpClient.BaseAddress
 			: new Uri(_httpClient.BaseAddress, "api/generate");
+	}
+
+	private bool IsInsecureHttpExplicitlyAllowed()
+	{
+		var envValue = Environment.GetEnvironmentVariable("PRM_CUSTOM_LLM_ALLOW_INSECURE_HTTP");
+		if (bool.TryParse(envValue, out var allowFromEnv))
+		{
+			return allowFromEnv;
+		}
+
+		return bool.TryParse(_configuration["Llm:Custom:AllowInsecureHttp"], out var allowFromConfig)
+		       && allowFromConfig;
 	}
 
 	private sealed class CustomGenerateResponse

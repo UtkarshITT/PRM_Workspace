@@ -59,9 +59,7 @@ public class SystemConfigServiceTests : IDisposable
 			LlmProvider = "Custom",
 			LlmApiKey = "secret-key",
 			SchedulerIntervalHours = 2,
-			MaxWeeklyHours = 45,
-			EmailConsoleEnabled = false,
-			EmailSmtpEnabled = true
+			MaxWeeklyHours = 45
 		}, adminUserId: 10);
 
 		var storedKey = await _context.SystemConfigurations
@@ -78,6 +76,20 @@ public class SystemConfigServiceTests : IDisposable
 
 		var audit = await _context.AuditLogs.SingleAsync();
 		audit.NewValues.Should().Contain("***REDACTED***");
+	}
+
+	[Fact]
+	public async Task GetAllAsync_HidesEmailChannelFlagsFromAdminConfig()
+	{
+		await SeedConfigAsync();
+
+		var result = await _service.GetAllAsync();
+
+		result.Select(config => config.Key).Should().Equal(
+			SystemConfigKeys.LlmProvider,
+			SystemConfigKeys.LlmApiKey,
+			SystemConfigKeys.SchedulerIntervalHours,
+			SystemConfigKeys.MaxWeeklyHours);
 	}
 
 	[Fact]

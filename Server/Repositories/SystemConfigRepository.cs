@@ -69,23 +69,21 @@ public class SystemConfigRepository : ISystemConfigRepository
 		return (string.IsNullOrWhiteSpace(provider) ? "Gemini" : provider, apiKey ?? string.Empty);
 	}
 
-	public async Task<EmailSettings> GetEmailSettingsAsync(CancellationToken cancellationToken = default)
+	public Task<EmailSettings> GetEmailSettingsAsync(CancellationToken cancellationToken = default)
 	{
-		var consoleEnabled = await GetBoolAsync(SystemConfigKeys.EmailConsoleEnabled, defaultValue: true, cancellationToken);
-		var smtpEnabled = await GetBoolAsync(SystemConfigKeys.EmailSmtpEnabled, defaultValue: true, cancellationToken);
 		var portValue = GetSmtpSetting("Port");
 		var port = int.TryParse(portValue, out var parsedPort) && parsedPort > 0 ? parsedPort : 587;
 
-		return new EmailSettings
+		return Task.FromResult(new EmailSettings
 		{
-			ConsoleEnabled = consoleEnabled,
-			SmtpEnabled = smtpEnabled,
+			ConsoleEnabled = true,
+			SmtpEnabled = true,
 			SmtpHost = GetSmtpSetting("Host"),
 			SmtpPort = port,
 			SmtpUsername = GetSmtpSetting("Username"),
 			SmtpPassword = GetSmtpSetting("Password"),
 			SmtpFromAddress = GetSmtpSetting("FromAddress")
-		};
+		});
 	}
 
 	private string GetSmtpSetting(string name)
@@ -108,23 +106,6 @@ public class SystemConfigRepository : ISystemConfigRepository
 	{
 		return string.Concat(name.Select((character, index) =>
 			index > 0 && char.IsUpper(character) ? $"_{character}" : character.ToString())).ToUpperInvariant();
-	}
-
-	private async Task<bool> GetBoolAsync(string key, bool defaultValue, CancellationToken cancellationToken)
-	{
-		var value = await GetValueByKeyAsync(key, cancellationToken);
-
-		if (string.IsNullOrWhiteSpace(value))
-		{
-			return defaultValue;
-		}
-
-		return value.Trim().ToLowerInvariant() switch
-		{
-			"true" or "1" or "yes" or "on" => true,
-			"false" or "0" or "no" or "off" => false,
-			_ => defaultValue
-		};
 	}
 
 	private string? UnprotectLlmApiKey(string? value)

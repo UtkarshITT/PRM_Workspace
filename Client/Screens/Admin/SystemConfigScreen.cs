@@ -102,23 +102,13 @@ public class SystemConfigScreen
 		    || !TryReadOptionalInt(
 			    "Max Weekly Hours         ",
 			    GetConfigValue(configs, "max_weekly_hours"),
-			    out var maxWeeklyHours)
-		    || !TryReadOptionalBool(
-			    "Console Email Enabled (Y/N)",
-			    GetConfigValue(configs, "email_console_enabled"),
-			    out var emailConsoleEnabled)
-		    || !TryReadOptionalBool(
-			    "SMTP Email Enabled (Y/N)   ",
-			    GetConfigValue(configs, "email_smtp_enabled"),
-			    out var emailSmtpEnabled))
+			    out var maxWeeklyHours))
 		{
 			return;
 		}
 
 		request.SchedulerIntervalHours = schedulerIntervalHours;
 		request.MaxWeeklyHours = maxWeeklyHours;
-		request.EmailConsoleEnabled = emailConsoleEnabled;
-		request.EmailSmtpEnabled = emailSmtpEnabled;
 
 		var response = await _adminClient.UpdateSystemConfigAsync(request);
 		if (!response.Success || response.Data == null)
@@ -149,39 +139,6 @@ public class SystemConfigScreen
 		}
 
 		ConsoleHelper.WriteError("Value must be a positive whole number, or blank to keep unchanged.");
-		ConsoleHelper.PressEnterToContinue();
-		value = null;
-		return false;
-	}
-
-	private static bool TryReadOptionalBool(string label, string? currentValue, out bool? value)
-	{
-		var input = ConsoleHelper.ReadOptionalUpdateInput(label, currentValue);
-		if (string.IsNullOrWhiteSpace(input))
-		{
-			value = null;
-			return true;
-		}
-
-		if (input.Equals("Y", StringComparison.OrdinalIgnoreCase)
-		    || input.Equals("YES", StringComparison.OrdinalIgnoreCase)
-		    || input.Equals("TRUE", StringComparison.OrdinalIgnoreCase)
-		    || input == "1")
-		{
-			value = true;
-			return true;
-		}
-
-		if (input.Equals("N", StringComparison.OrdinalIgnoreCase)
-		    || input.Equals("NO", StringComparison.OrdinalIgnoreCase)
-		    || input.Equals("FALSE", StringComparison.OrdinalIgnoreCase)
-		    || input == "0")
-		{
-			value = false;
-			return true;
-		}
-
-		ConsoleHelper.WriteError("Value must be Y/N, true/false, 1/0, or blank to keep unchanged.");
 		ConsoleHelper.PressEnterToContinue();
 		value = null;
 		return false;

@@ -28,9 +28,8 @@ public class EmailNotificationServiceTests : IDisposable
 	}
 
 	[Fact]
-	public async Task SendAsync_WithBothChannelsEnabled_WritesConsoleAndSkipsSmtpWhenNotConfigured()
+	public async Task SendAsync_WithNoSmtpRuntimeConfig_WritesConsoleAndSkipsSmtp()
 	{
-		await SeedEmailConfigAsync(consoleEnabled: true, smtpEnabled: true);
 		var userId = await SeedUserAsync();
 
 		await _service.SendAsync(new NotificationEmailRequest
@@ -51,9 +50,9 @@ public class EmailNotificationServiceTests : IDisposable
 	}
 
 	[Fact]
-	public async Task SendAsync_WithOnlyConsoleEnabled_WritesSingleConsoleLog()
+	public async Task SendAsync_IgnoresLegacyDisabledEmailRows()
 	{
-		await SeedEmailConfigAsync(consoleEnabled: true, smtpEnabled: false);
+		await SeedLegacyEmailConfigAsync(consoleEnabled: false, smtpEnabled: false);
 		var userId = await SeedUserAsync();
 
 		await _service.SendAsync(new NotificationEmailRequest
@@ -66,14 +65,16 @@ public class EmailNotificationServiceTests : IDisposable
 		});
 
 		var logs = await _context.NotificationLogs.ToListAsync();
-		logs.Should().ContainSingle();
-		logs[0].DeliveryChannel.Should().Be(EmailNotificationService.ChannelConsole);
+		logs.Should().HaveCount(2);
+		logs.Should().Contain(log =>
+			log.DeliveryChannel == EmailNotificationService.ChannelConsole && log.Status == "SENT");
+		logs.Should().Contain(log =>
+			log.DeliveryChannel == EmailNotificationService.ChannelSmtp && log.Status == "SKIPPED");
 	}
 
 	[Fact]
-	public async Task SendAsync_WithOnlySmtpEnabled_AttemptsSmtpOnly()
+	public async Task SendAsync_WithSmtpRuntimeConfig_AttemptsConsoleAndSmtp()
 	{
-		await SeedEmailConfigAsync(consoleEnabled: false, smtpEnabled: true);
 		var service = CreateService(
 			new Dictionary<string, string?>
 			{
@@ -93,9 +94,11 @@ public class EmailNotificationServiceTests : IDisposable
 		});
 
 		var logs = await _context.NotificationLogs.ToListAsync();
-		logs.Should().ContainSingle();
-		logs[0].DeliveryChannel.Should().Be(EmailNotificationService.ChannelSmtp);
-		logs[0].Status.Should().Be("FAILED");
+		logs.Should().HaveCount(2);
+		logs.Should().Contain(log =>
+			log.DeliveryChannel == EmailNotificationService.ChannelConsole && log.Status == "SENT");
+		logs.Should().Contain(log =>
+			log.DeliveryChannel == EmailNotificationService.ChannelSmtp && log.Status == "FAILED");
 	}
 
 	private EmailNotificationService CreateService(Dictionary<string, string?>? settings = null)
@@ -110,7 +113,7 @@ public class EmailNotificationServiceTests : IDisposable
 			NullLogger<EmailNotificationService>.Instance);
 	}
 
-	private async Task SeedEmailConfigAsync(bool consoleEnabled, bool smtpEnabled)
+	private async Task SeedLegacyEmailConfigAsync(bool consoleEnabled, bool smtpEnabled)
 	{
 		var now = DateTime.UtcNow;
 		_context.SystemConfigurations.AddRange(
