@@ -1,5 +1,4 @@
 using PRM.Server.Constants;
-using PRM.Server.Data;
 using PRM.Server.Exceptions;
 using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Timesheets;
@@ -41,7 +40,6 @@ public class TimesheetService : ITimesheetService
 	private const decimal DefaultMaxWeeklyHours = 40;
 	private const string OtherTagCode = "OTHER";
 
-	private readonly PrmDbContext _context;
 	private readonly ITimesheetRepository _timesheetRepository;
 	private readonly IAllocationRepository _allocationRepository;
 	private readonly IActivityTagRepository _activityTagRepository;
@@ -50,7 +48,6 @@ public class TimesheetService : ITimesheetService
 	private readonly IProjectRepository _projectRepository;
 
 	public TimesheetService(
-		PrmDbContext context,
 		ITimesheetRepository timesheetRepository,
 		IAllocationRepository allocationRepository,
 		IActivityTagRepository activityTagRepository,
@@ -58,7 +55,6 @@ public class TimesheetService : ITimesheetService
 		IResourceProfileRepository resourceProfileRepository,
 		IProjectRepository projectRepository)
 	{
-		_context = context;
 		_timesheetRepository = timesheetRepository;
 		_allocationRepository = allocationRepository;
 		_activityTagRepository = activityTagRepository;
@@ -153,67 +149,50 @@ public class TimesheetService : ITimesheetService
 				$"Total hours ({totalHours:0.##}) exceed maximum weekly hours ({maxWeeklyHours:0.##}).");
 		}
 
-		await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
-		try
+		var now = DateTime.UtcNow;
+		var timesheet = new Timesheet
 		{
-			var now = DateTime.UtcNow;
-			var timesheet = new Timesheet
+			ResourceProfileId = employeeId,
+			WeekStartDate = weekStart,
+			Status = "SUBMITTED",
+			TotalHours = totalHours,
+			Remarks = dto.Remarks,
+			SubmittedAt = now,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		foreach (var lineItemDto in dto.LineItems)
+		{
+			var lineItem = new TimesheetLineItem
 			{
-				ResourceProfileId = employeeId,
-				WeekStartDate = weekStart,
-				Status = "SUBMITTED",
-				TotalHours = totalHours,
-				Remarks = dto.Remarks,
-				SubmittedAt = now,
+				ProjectId = lineItemDto.ProjectId,
+				HoursLogged = lineItemDto.HoursLogged,
 				CreatedAt = now,
 				UpdatedAt = now
 			};
 
-			_context.Timesheets.Add(timesheet);
-			await _context.SaveChangesAsync(cancellationToken);
-
-			foreach (var lineItemDto in dto.LineItems)
+			foreach (var tagId in lineItemDto.ActivityTagIds)
 			{
-				var lineItem = new TimesheetLineItem
+				lineItem.ActivityTags.Add(new TimesheetLineItemActivityTag
 				{
-					TimesheetId = timesheet.Id,
-					ProjectId = lineItemDto.ProjectId,
-					HoursLogged = lineItemDto.HoursLogged,
-					CreatedAt = now,
-					UpdatedAt = now
-				};
-
-				_context.TimesheetLineItems.Add(lineItem);
-				await _context.SaveChangesAsync(cancellationToken);
-
-				foreach (var tagId in lineItemDto.ActivityTagIds)
-				{
-					_context.TimesheetLineItemActivityTags.Add(new TimesheetLineItemActivityTag
-					{
-						TimesheetLineItemId = lineItem.Id,
-						ActivityTagId = tagId,
-						CustomTagText = tagId == otherTagId ? lineItemDto.CustomTagText?.Trim() : null
-					});
-				}
+					ActivityTagId = tagId,
+					CustomTagText = tagId == otherTagId ? lineItemDto.CustomTagText?.Trim() : null
+				});
 			}
 
-			await _context.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
+			timesheet.LineItems.Add(lineItem);
+		}
 
-			return new TimesheetSubmittedDto
-			{
-				TimesheetId = timesheet.Id,
-				WeekStartDate = weekStart,
-				Status = timesheet.Status,
-				TotalHours = totalHours
-			};
-		}
-		catch
+		await _timesheetRepository.AddSubmittedAsync(timesheet, cancellationToken);
+
+		return new TimesheetSubmittedDto
 		{
-			await transaction.RollbackAsync(cancellationToken);
-			throw;
-		}
+			TimesheetId = timesheet.Id,
+			WeekStartDate = weekStart,
+			Status = timesheet.Status,
+			TotalHours = totalHours
+		};
 	}
 
 	public async Task<IReadOnlyList<TimesheetListItemDto>> GetMyTimesheetsAsync(

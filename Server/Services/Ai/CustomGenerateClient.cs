@@ -62,6 +62,11 @@ public class CustomGenerateClient : ILlmClient
 			throw new InvalidOperationException("Custom LLM base URL is not configured.");
 		}
 
+		if (_httpClient.BaseAddress.Scheme == Uri.UriSchemeHttp && !_httpClient.BaseAddress.IsLoopback)
+		{
+			throw new InvalidOperationException("Custom LLM base URL must use HTTPS unless it points to localhost.");
+		}
+
 		var path = _httpClient.BaseAddress.AbsolutePath.TrimEnd('/');
 		return path.EndsWith("/api/generate", StringComparison.OrdinalIgnoreCase)
 			? _httpClient.BaseAddress

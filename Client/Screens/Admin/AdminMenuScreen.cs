@@ -35,7 +35,7 @@ public class AdminMenuScreen
 			Console.WriteLine("  1. Manage Employees");
 			Console.WriteLine("  2. Manage Projects");
 			Console.WriteLine("  3. View All Allocations");
-			Console.WriteLine("  4. Manage Users");
+			Console.WriteLine("  4. Manage Users & Roles");
 			Console.WriteLine("  5. System Configuration");
 			Console.WriteLine("  6. Logout");
 			Console.WriteLine();

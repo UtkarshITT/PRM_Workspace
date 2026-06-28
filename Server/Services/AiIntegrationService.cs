@@ -1,7 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 using PRM.Server.Constants;
-using PRM.Server.Data;
 using PRM.Server.Exceptions;
 using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Ai;
@@ -27,31 +25,31 @@ public class AiIntegrationService : IAiIntegrationService
 	private const string FallbackRiskMessage = "AI risk summary unavailable. Review milestones and team timesheets manually.";
 	private const string FallbackTeamBuilderMessage = "AI team builder unavailable. Review team skills on the Resource Dashboard.";
 
-	private readonly PrmDbContext _context;
 	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IProjectRepository _projectRepository;
 	private readonly ITimesheetRepository _timesheetRepository;
 	private readonly ISystemConfigRepository _systemConfigRepository;
 	private readonly IAiRequestLogRepository _aiRequestLogRepository;
+	private readonly ISkillRepository _skillRepository;
 	private readonly ILlmClientFactory _llmClientFactory;
 	private readonly ILogger<AiIntegrationService> _logger;
 
 	public AiIntegrationService(
-		PrmDbContext context,
 		IResourceProfileRepository resourceProfileRepository,
 		IProjectRepository projectRepository,
 		ITimesheetRepository timesheetRepository,
 		ISystemConfigRepository systemConfigRepository,
 		IAiRequestLogRepository aiRequestLogRepository,
+		ISkillRepository skillRepository,
 		ILlmClientFactory llmClientFactory,
 		ILogger<AiIntegrationService> logger)
 	{
-		_context = context;
 		_resourceProfileRepository = resourceProfileRepository;
 		_projectRepository = projectRepository;
 		_timesheetRepository = timesheetRepository;
 		_systemConfigRepository = systemConfigRepository;
 		_aiRequestLogRepository = aiRequestLogRepository;
+		_skillRepository = skillRepository;
 		_llmClientFactory = llmClientFactory;
 		_logger = logger;
 	}
@@ -397,22 +395,10 @@ public class AiIntegrationService : IAiIntegrationService
 		var fourWeeksAgo = today.AddDays(-28);
 		var profileIds = resourceProfiles.Select(member => member.Id).ToList();
 
-		var tagRows = await _context.TimesheetLineItemActivityTags
-			.Where(tag =>
-				profileIds.Contains(tag.TimesheetLineItem.Timesheet.ResourceProfileId)
-				&& tag.TimesheetLineItem.Timesheet.WeekStartDate >= fourWeeksAgo)
-			.Select(tag => new
-			{
-				ResourceProfileId = tag.TimesheetLineItem.Timesheet.ResourceProfileId,
-				TagName = tag.ActivityTag.TagName
-			})
-			.ToListAsync(cancellationToken);
-
-		var recentTags = tagRows
-			.GroupBy(row => row.ResourceProfileId)
-			.ToDictionary(
-				group => group.Key,
-				group => group.Select(row => row.TagName).Distinct().ToList());
+		var recentTags = await _timesheetRepository.GetRecentActivityTagsByResourceProfilesAsync(
+			profileIds,
+			fourWeeksAgo,
+			cancellationToken);
 
 		return resourceProfiles.Select(member =>
 		{
@@ -544,9 +530,7 @@ public class AiIntegrationService : IAiIntegrationService
 			return new Dictionary<long, string>();
 		}
 
-		return await _context.Skills
-			.Where(skill => skillIds.Contains(skill.Id))
-			.ToDictionaryAsync(skill => skill.Id, skill => skill.SkillName, cancellationToken);
+		return new Dictionary<long, string>(await _skillRepository.GetNamesByIdsAsync(skillIds, cancellationToken));
 	}
 
 	private AiSkillMatchResponseDto BuildDeterministicSkillMatch(string requirement, IReadOnlyList<AiCandidateContext> eligible)

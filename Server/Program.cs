@@ -85,10 +85,13 @@ builder.Services.AddHttpClient("GroqLlm", client =>
 
 builder.Services.AddHttpClient("CustomGenerateLlm", client =>
 {
-	client.BaseAddress = new Uri(builder.Configuration["Llm:Custom:BaseUrl"] ?? "http://164.52.211.238");
+	client.BaseAddress = new Uri(builder.Configuration["Llm:Custom:BaseUrl"] ?? "http://localhost:11434");
 	client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddScoped<ILlmClientRegistration, GeminiLlmClientRegistration>();
+builder.Services.AddScoped<ILlmClientRegistration, GroqLlmClientRegistration>();
+builder.Services.AddScoped<ILlmClientRegistration, CustomLlmClientRegistration>();
 builder.Services.AddScoped<ILlmClientFactory, LlmClientFactory>();
 builder.Services.AddScoped<IAiIntegrationService, AiIntegrationService>();
 builder.Services.AddScoped<IAuthService, AuthService>();

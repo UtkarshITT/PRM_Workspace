@@ -15,4 +15,5 @@ public class EmployeeAllocationsResponseDto
 {
 	public IReadOnlyList<EmployeeAllocationDto> Allocations { get; set; } = [];
 	public decimal TotalActiveUtilizationPercent { get; set; }
+	public decimal MaxWeeklyHours { get; set; }
 }

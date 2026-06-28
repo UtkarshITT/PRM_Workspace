@@ -24,9 +24,10 @@ public class ManageUsersScreen
 			Console.WriteLine("  1. Create User Account");
 			Console.WriteLine("  2. View All Users");
 			Console.WriteLine("  3. Reset User Password");
-			Console.WriteLine("  4. Change User Role");
-			Console.WriteLine("  5. Deactivate User");
-			Console.WriteLine("  6. Back");
+			Console.WriteLine("  4. Manage User Roles");
+			Console.WriteLine("  5. View Role Permissions");
+			Console.WriteLine("  6. Deactivate User");
+			Console.WriteLine("  7. Back");
 			Console.WriteLine();
 			Console.Write("Enter option: ");
 
@@ -45,9 +46,12 @@ public class ManageUsersScreen
 					await ChangeUserRoleAsync();
 					break;
 				case "5":
-					await DeactivateUserAsync();
+					await ViewRolePermissionsAsync();
 					break;
 				case "6":
+					await DeactivateUserAsync();
+					break;
+				case "7":
 					running = false;
 					break;
 				default:
@@ -201,7 +205,7 @@ public class ManageUsersScreen
 	private async Task ChangeUserRoleAsync()
 	{
 		Console.Clear();
-		ConsoleHelper.WriteHeader("Change User Role");
+		ConsoleHelper.WriteHeader("Manage User Roles");
 
 		if (!TryReadPositiveLong("User ID: ", "User ID must be a positive number.", out var userId))
 		{
@@ -236,6 +240,33 @@ public class ManageUsersScreen
 		{
 			WriteApiError(response);
 			return;
+		}
+
+		ConsoleHelper.PressEnterToContinue();
+	}
+
+	private async Task ViewRolePermissionsAsync()
+	{
+		Console.Clear();
+		ConsoleHelper.WriteHeader("Role Permissions");
+
+		var response = await _adminClient.GetRolePermissionsAsync();
+		if (!response.Success || response.Data == null)
+		{
+			WriteApiError(response);
+			return;
+		}
+
+		foreach (var role in response.Data)
+		{
+			Console.WriteLine(role.Role);
+			Console.WriteLine(new string('-', role.Role.Length));
+			foreach (var permission in role.Permissions)
+			{
+				Console.WriteLine($"  - {permission}");
+			}
+
+			Console.WriteLine();
 		}
 
 		ConsoleHelper.PressEnterToContinue();

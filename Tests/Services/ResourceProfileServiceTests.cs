@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using PRM.Server.Constants;
 using PRM.Server.Data;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories;
@@ -22,11 +23,36 @@ public class ResourceProfileServiceTests : IDisposable
 
 		_context = new PrmDbContext(options);
 		_resourceProfileService = new ResourceProfileService(
-			_context,
 			new ResourceProfileRepository(_context),
 			new UserRepository(_context),
 			new SkillRepository(_context),
-			new AllocationRepository(_context));
+			new AllocationRepository(_context),
+			new TimesheetRepository(_context),
+			new AuditLogRepository(_context));
+	}
+
+	[Fact]
+	public async Task GetAllEmployeesAsync_ExcludesAdminAndManagerResourceProfiles()
+	{
+		var now = DateTime.UtcNow;
+		var admin = CreateUser(1, "admin", Roles.Admin, now);
+		var manager = CreateUser(2, "manager", Roles.Manager, now);
+		var employee = CreateUser(3, "employee", Roles.Employee, now);
+
+		_context.Users.AddRange(admin, manager, employee);
+		await _context.SaveChangesAsync();
+
+		_context.ResourceProfiles.AddRange(
+			CreateResourceProfile(10, admin.Id, "IT", now),
+			CreateResourceProfile(11, manager.Id, "Delivery", now),
+			CreateResourceProfile(12, employee.Id, "Backend", now));
+		await _context.SaveChangesAsync();
+
+		var result = await _resourceProfileService.GetAllEmployeesAsync(null, null);
+
+		result.Should().ContainSingle();
+		result[0].Id.Should().Be(12);
+		result[0].FullName.Should().Be("employee");
 	}
 
 	[Fact]
@@ -155,6 +181,37 @@ public class ResourceProfileServiceTests : IDisposable
 
 		await _context.SaveChangesAsync();
 		return (resourceProfile, user);
+	}
+
+	private static User CreateUser(long id, string username, string role, DateTime now)
+	{
+		return new User
+		{
+			Id = id,
+			Username = username,
+			Email = $"{username}@techserve.com",
+			FullName = username,
+			PasswordHash = "hash",
+			Role = role,
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+	}
+
+	private static ResourceProfile CreateResourceProfile(long id, long userId, string department, DateTime now)
+	{
+		return new ResourceProfile
+		{
+			Id = id,
+			UserId = userId,
+			ResourceProfileCode = $"EMP-{id:D6}",
+			Department = department,
+			EmploymentStatus = "BENCH",
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
 	}
 
 	public void Dispose()

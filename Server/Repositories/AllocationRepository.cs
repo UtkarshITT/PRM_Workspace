@@ -95,4 +95,14 @@ public class AllocationRepository : IAllocationRepository
 				weekEnd))
 			.ToList();
 	}
+
+	public Task AddAsync(ProjectAllocation allocation, CancellationToken cancellationToken = default)
+	{
+		return _context.ProjectAllocations.AddAsync(allocation, cancellationToken).AsTask();
+	}
+
+	public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+	{
+		return _context.SaveChangesAsync(cancellationToken);
+	}
 }

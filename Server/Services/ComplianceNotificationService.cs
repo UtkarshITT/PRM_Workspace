@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore;
 using PRM.Server.Constants;
-using PRM.Server.Data;
 using PRM.Server.Helpers;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories.Interfaces;
@@ -23,18 +21,24 @@ public class ComplianceNotificationService : IComplianceNotificationService
 	private const string ProjectAtRisk = "PROJECT_AT_RISK";
 	private const short MaxRemindersBeforeFreeze = 2;
 
-	private readonly PrmDbContext _context;
 	private readonly IEmailNotificationService _emailNotificationService;
 	private readonly INotificationLogRepository _notificationLogRepository;
+	private readonly IResourceProfileRepository _resourceProfileRepository;
+	private readonly ITimesheetRepository _timesheetRepository;
+	private readonly IProjectRepository _projectRepository;
 
 	public ComplianceNotificationService(
-		PrmDbContext context,
 		IEmailNotificationService emailNotificationService,
-		INotificationLogRepository notificationLogRepository)
+		INotificationLogRepository notificationLogRepository,
+		IResourceProfileRepository resourceProfileRepository,
+		ITimesheetRepository timesheetRepository,
+		IProjectRepository projectRepository)
 	{
-		_context = context;
 		_emailNotificationService = emailNotificationService;
 		_notificationLogRepository = notificationLogRepository;
+		_resourceProfileRepository = resourceProfileRepository;
+		_timesheetRepository = timesheetRepository;
+		_projectRepository = projectRepository;
 	}
 
 	public async Task<ComplianceRunResult> ProcessTimesheetComplianceAsync(
@@ -49,10 +53,10 @@ public class ComplianceNotificationService : IComplianceNotificationService
 
 		foreach (var resourceProfile in resourceProfiles)
 		{
-			var timesheet = await _context.Timesheets
-				.FirstOrDefaultAsync(
-					item => item.ResourceProfileId == resourceProfile.Id && item.WeekStartDate == weekStart,
-					cancellationToken);
+			var timesheet = await _timesheetRepository.GetByResourceProfileAndWeekAsync(
+				resourceProfile.Id,
+				weekStart,
+				cancellationToken);
 
 			if (timesheet?.Status == "SUBMITTED")
 			{
@@ -69,7 +73,7 @@ public class ComplianceNotificationService : IComplianceNotificationService
 			{
 				tracking.ReminderCount++;
 				tracking.LastReminderAt = DateTime.UtcNow;
-				await _context.SaveChangesAsync(cancellationToken);
+				await _timesheetRepository.SaveChangesAsync(cancellationToken);
 
 				await SendTimesheetReminderAsync(resourceProfile, weekStart, tracking.ReminderCount, cancellationToken);
 				remindersSent++;
@@ -87,13 +91,7 @@ public class ComplianceNotificationService : IComplianceNotificationService
 	{
 		var today = DateOnly.FromDateTime(DateTime.UtcNow);
 		var currentWeekStart = WeekHelper.GetWeekStart(today);
-		var projects = await _context.Projects
-			.Include(project => project.ManagerUser)
-			.Where(project =>
-				project.IsActive
-				&& project.ProjectStatus == ProjectStatuses.Active
-				&& (project.HealthStatus == "AMBER" || project.HealthStatus == "RED"))
-			.ToListAsync(cancellationToken);
+		var projects = await _projectRepository.GetActiveAtRiskProjectsAsync(cancellationToken);
 		var sent = 0;
 
 		foreach (var project in projects)
@@ -132,25 +130,7 @@ public class ComplianceNotificationService : IComplianceNotificationService
 		DateOnly weekEnd,
 		CancellationToken cancellationToken)
 	{
-		var allocations = await _context.ProjectAllocations
-			.Include(allocation => allocation.ResourceProfile)
-			.ThenInclude(profile => profile.User)
-			.Include(allocation => allocation.ResourceProfile)
-			.ThenInclude(profile => profile.Manager)
-			.Where(allocation => allocation.AllocationStatus == "ACTIVE")
-			.ToListAsync(cancellationToken);
-
-		return allocations
-			.Where(allocation => UtilizationCalculator.PeriodsOverlap(
-				allocation.AllocationStartDate,
-				allocation.AllocationEndDate,
-				weekStart,
-				weekEnd))
-			.Select(allocation => allocation.ResourceProfile)
-			.Where(profile => profile.IsActive)
-			.GroupBy(profile => profile.Id)
-			.Select(group => group.First())
-			.ToList();
+		return await _resourceProfileRepository.GetAllocatedForWeekAsync(weekStart, weekEnd, cancellationToken);
 	}
 
 	private async Task<TimesheetComplianceTracking> GetOrCreateTrackingAsync(
@@ -158,23 +138,7 @@ public class ComplianceNotificationService : IComplianceNotificationService
 		DateOnly weekStart,
 		CancellationToken cancellationToken)
 	{
-		var tracking = await _context.TimesheetComplianceTrackings.FindAsync(
-			[resourceProfileId, weekStart],
-			cancellationToken);
-
-		if (tracking != null)
-		{
-			return tracking;
-		}
-
-		tracking = new TimesheetComplianceTracking
-		{
-			ResourceProfileId = resourceProfileId,
-			WeekStartDate = weekStart
-		};
-		_context.TimesheetComplianceTrackings.Add(tracking);
-		await _context.SaveChangesAsync(cancellationToken);
-		return tracking;
+		return await _timesheetRepository.GetOrCreateComplianceTrackingAsync(resourceProfileId, weekStart, cancellationToken);
 	}
 
 	private Task SendTimesheetReminderAsync(
@@ -208,7 +172,7 @@ public class ComplianceNotificationService : IComplianceNotificationService
 		resourceProfile.TimesheetFrozenAt = now;
 		resourceProfile.UpdatedAt = now;
 		tracking.IsFrozenForWeek = true;
-		await _context.SaveChangesAsync(cancellationToken);
+		await _timesheetRepository.SaveChangesAsync(cancellationToken);
 
 		await _emailNotificationService.SendAsync(new NotificationEmailRequest
 		{

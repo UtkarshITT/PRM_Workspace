@@ -10,4 +10,7 @@ public interface ISkillRepository
 	Task AddResourceProfileSkillAsync(ResourceProfileSkill resourceProfileSkill, CancellationToken cancellationToken = default);
 	Task RemoveResourceProfileSkillAsync(ResourceProfileSkill resourceProfileSkill, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<ResourceProfileSkill>> GetResourceProfileSkillsAsync(long resourceProfileId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyDictionary<long, string>> GetNamesByIdsAsync(
+		IReadOnlyList<long> skillIds,
+		CancellationToken cancellationToken = default);
 }

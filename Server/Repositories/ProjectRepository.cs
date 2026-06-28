@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PRM.Server.Constants;
 using PRM.Server.Data;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories.Interfaces;
@@ -100,6 +101,17 @@ public class ProjectRepository : IProjectRepository
 			.Include(project => project.Milestones)
 			.Include(project => project.ProjectAllocations)
 			.Where(project => project.IsActive && project.ProjectStatus == "ACTIVE")
+			.ToListAsync(cancellationToken);
+	}
+
+	public async Task<IReadOnlyList<Project>> GetActiveAtRiskProjectsAsync(CancellationToken cancellationToken = default)
+	{
+		return await _context.Projects
+			.Include(project => project.ManagerUser)
+			.Where(project =>
+				project.IsActive
+				&& project.ProjectStatus == ProjectStatuses.Active
+				&& (project.HealthStatus == "AMBER" || project.HealthStatus == "RED"))
 			.ToListAsync(cancellationToken);
 	}
 

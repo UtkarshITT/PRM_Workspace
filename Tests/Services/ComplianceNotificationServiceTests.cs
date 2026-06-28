@@ -31,7 +31,12 @@ public class ComplianceNotificationServiceTests : IDisposable
 			new SystemConfigRepository(_context, new ConfigurationBuilder().Build()),
 			notificationLogRepository,
 			NullLogger<EmailNotificationService>.Instance);
-		_service = new ComplianceNotificationService(_context, emailService, notificationLogRepository);
+		_service = new ComplianceNotificationService(
+			emailService,
+			notificationLogRepository,
+			new ResourceProfileRepository(_context),
+			new TimesheetRepository(_context),
+			new ProjectRepository(_context));
 	}
 
 	[Fact]

@@ -1,7 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using PRM.Server.Constants;
 using PRM.Server.Helpers;
-using PRM.Server.Data;
 using PRM.Server.Exceptions;
 using PRM.Server.Models.DTOs.Employees;
 using PRM.Server.Models.Entities;
@@ -27,27 +25,27 @@ public interface IResourceProfileService
 
 public class ResourceProfileService : IResourceProfileService
 {
-	private readonly PrmDbContext _context;
 	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IUserRepository _userRepository;
 	private readonly ISkillRepository _skillRepository;
 	private readonly IAllocationRepository _allocationRepository;
-	private readonly IHttpContextAccessor? _httpContextAccessor;
+	private readonly ITimesheetRepository _timesheetRepository;
+	private readonly IAuditLogRepository _auditLogRepository;
 
 	public ResourceProfileService(
-		PrmDbContext context,
 		IResourceProfileRepository resourceProfileRepository,
 		IUserRepository userRepository,
 		ISkillRepository skillRepository,
 		IAllocationRepository allocationRepository,
-		IHttpContextAccessor? httpContextAccessor = null)
+		ITimesheetRepository timesheetRepository,
+		IAuditLogRepository auditLogRepository)
 	{
-		_context = context;
 		_resourceProfileRepository = resourceProfileRepository;
 		_userRepository = userRepository;
 		_skillRepository = skillRepository;
 		_allocationRepository = allocationRepository;
-		_httpContextAccessor = httpContextAccessor;
+		_timesheetRepository = timesheetRepository;
+		_auditLogRepository = auditLogRepository;
 	}
 
 	public async Task<IReadOnlyList<EmployeeListItemDto>> GetAllEmployeesAsync(
@@ -97,43 +95,30 @@ public class ResourceProfileService : IResourceProfileService
 		var now = DateTime.UtcNow;
 		var endedAllocationIds = new List<long>();
 
-		await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+		resourceProfile.IsActive = false;
+		resourceProfile.EmploymentStatus = "BENCH";
+		resourceProfile.UpdatedAt = now;
+		resourceProfile.User.IsActive = false;
+		resourceProfile.User.UpdatedAt = now;
 
-		try
+		foreach (var allocation in activeAllocations)
 		{
-			resourceProfile.IsActive = false;
-			resourceProfile.EmploymentStatus = "BENCH";
-			resourceProfile.UpdatedAt = now;
-			resourceProfile.User.IsActive = false;
-			resourceProfile.User.UpdatedAt = now;
-
-			foreach (var allocation in activeAllocations)
-			{
-				allocation.AllocationStatus = "ENDED";
-				allocation.AllocationEndDate = today;
-				allocation.UpdatedAt = now;
-				endedAllocationIds.Add(allocation.Id);
-			}
-
-			_context.AuditLogs.Add(new AuditLog
-			{
-				ActorUserId = actorUserId,
-				EntityName = "RESOURCE_PROFILES",
-				EntityId = resourceProfileId,
-				ActionType = "DEACTIVATE",
-				NewValues = $"{{\"endedAllocationIds\":[{string.Join(",", endedAllocationIds)}]}}",
-				CreatedAt = now,
-				CorrelationId = GetCorrelationId()
-			});
-
-			await _context.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
+			allocation.AllocationStatus = "ENDED";
+			allocation.AllocationEndDate = today;
+			allocation.UpdatedAt = now;
+			endedAllocationIds.Add(allocation.Id);
 		}
-		catch
+
+		await _resourceProfileRepository.SaveChangesAsync(cancellationToken);
+		await _auditLogRepository.WriteAsync(new AuditLog
 		{
-			await transaction.RollbackAsync(cancellationToken);
-			throw;
-		}
+			ActorUserId = actorUserId,
+			EntityName = "RESOURCE_PROFILES",
+			EntityId = resourceProfileId,
+			ActionType = "DEACTIVATE",
+			NewValues = $"{{\"endedAllocationIds\":[{string.Join(",", endedAllocationIds)}]}}",
+			CreatedAt = now
+		}, cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<EmployeeSkillDto>> AddSkillAsync(
@@ -257,16 +242,11 @@ public class ResourceProfileService : IResourceProfileService
 		var utilization = UtilizationCalculator.CalculateCurrentUtilization(resourceProfile.ProjectAllocations, today);
 		var fourWeeksAgo = today.AddDays(-28);
 
-		var recentTags = await _context.TimesheetLineItemActivityTags
-			.Include(tag => tag.ActivityTag)
-			.Include(tag => tag.TimesheetLineItem)
-			.ThenInclude(lineItem => lineItem.Timesheet)
-			.Where(tag =>
-				tag.TimesheetLineItem.Timesheet.ResourceProfileId == resourceProfileId
-				&& tag.TimesheetLineItem.Timesheet.WeekStartDate >= fourWeeksAgo)
-			.Select(tag => tag.ActivityTag.TagName)
-			.Distinct()
-			.ToListAsync(cancellationToken);
+		var recentTagsByProfile = await _timesheetRepository.GetRecentActivityTagsByResourceProfilesAsync(
+			[resourceProfileId],
+			fourWeeksAgo,
+			cancellationToken);
+		var recentTags = recentTagsByProfile.GetValueOrDefault(resourceProfileId) ?? [];
 
 		return new TeamMemberDetailDto
 		{
@@ -348,28 +328,18 @@ public class ResourceProfileService : IResourceProfileService
 		resourceProfile.TimesheetFrozenAt = null;
 		resourceProfile.UpdatedAt = now;
 
-		foreach (var tracking in _context.TimesheetComplianceTrackings.Where(item => item.ResourceProfileId == resourceProfileId))
-		{
-			tracking.IsFrozenForWeek = false;
-		}
-
-		_context.AuditLogs.Add(new AuditLog
+		await _timesheetRepository.ClearComplianceFreezeAsync(resourceProfileId, cancellationToken);
+		await _resourceProfileRepository.SaveChangesAsync(cancellationToken);
+		await _timesheetRepository.SaveChangesAsync(cancellationToken);
+		await _auditLogRepository.WriteAsync(new AuditLog
 		{
 			ActorUserId = managerUserId,
 			EntityName = "RESOURCE_PROFILES",
 			EntityId = resourceProfileId,
 			ActionType = "RESTORE_TIMESHEET_ACCESS",
 			NewValues = "{\"is_timesheet_frozen\":false}",
-			CreatedAt = now,
-			CorrelationId = GetCorrelationId()
-		});
-
-		await _context.SaveChangesAsync(cancellationToken);
-	}
-
-	private string? GetCorrelationId()
-	{
-		return _httpContextAccessor?.HttpContext?.Items[global::PRM.Server.Middleware.CorrelationIdMiddleware.ItemName]?.ToString();
+			CreatedAt = now
+		}, cancellationToken);
 	}
 
 	private static EmployeeListItemDto MapListItem(ResourceProfile resourceProfile)

@@ -1,41 +1,43 @@
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
+using Moq;
 using PRM.Server.Constants;
-using PRM.Server.Data;
 using PRM.Server.Exceptions;
-using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Projects;
 using PRM.Server.Models.Entities;
-using PRM.Server.Repositories;
+using PRM.Server.Repositories.Interfaces;
 using PRM.Server.Services.Interfaces;
 
 namespace PRM.Tests.Services;
 
-public class ProjectServiceTests : IDisposable
+public class ProjectServiceTests
 {
-	private readonly PrmDbContext _context;
+	private readonly Mock<IProjectRepository> _projectRepository = new();
+	private readonly Mock<IUserRepository> _userRepository = new();
+	private readonly Mock<ITimesheetRepository> _timesheetRepository = new();
+	private readonly Mock<ISystemConfigRepository> _systemConfigRepository = new();
 	private readonly ProjectService _projectService;
 
 	public ProjectServiceTests()
 	{
-		var options = new DbContextOptionsBuilder<PrmDbContext>()
-			.UseInMemoryDatabase(Guid.NewGuid().ToString())
-			.ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-			.Options;
-
-		_context = new PrmDbContext(options);
 		_projectService = new ProjectService(
-			new ProjectRepository(_context),
-			new UserRepository(_context),
-			new TimesheetRepository(_context),
-			new SystemConfigRepository(_context));
+			_projectRepository.Object,
+			_userRepository.Object,
+			_timesheetRepository.Object,
+			_systemConfigRepository.Object);
+		_systemConfigRepository
+			.Setup(repository => repository.GetValueByKeyAsync(SystemConfigKeys.MaxWeeklyHours, It.IsAny<CancellationToken>()))
+			.ReturnsAsync("40");
 	}
 
 	[Fact]
 	public async Task CreateProjectAsync_WithValidInput_CreatesProjectWithCode()
 	{
-		var managerId = await SeedManagerAsync();
+		const long managerId = 10;
+		ArrangeManager(managerId);
+		_projectRepository
+			.Setup(repository => repository.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+			.Callback<Project, CancellationToken>((project, _) => project.Id = 101)
+			.ReturnsAsync((Project project, CancellationToken _) => project);
 		var startDate = DateOnly.FromDateTime(DateTime.Today);
 
 		var result = await _projectService.CreateProjectAsync(new CreateProjectDto
@@ -51,14 +53,15 @@ public class ProjectServiceTests : IDisposable
 
 		result.ProjectId.Should().BeGreaterThan(0);
 		result.ProjectCode.Should().Be($"PRJ-{result.ProjectId:D6}");
+		_projectRepository.Verify(repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
 	}
 
 	[Fact]
 	public async Task AddMilestoneAsync_WithDueDateOutsideProjectRange_ThrowsValidation()
 	{
-		var projectId = await SeedProjectAsync();
+		var project = ArrangeProject();
 
-		var act = () => _projectService.AddMilestoneAsync(projectId, new CreateMilestoneDto
+		var act = () => _projectService.AddMilestoneAsync(project.Id, new CreateMilestoneDto
 		{
 			MilestoneTitle = "Late Milestone",
 			DueDate = new DateOnly(2027, 1, 1),
@@ -73,10 +76,14 @@ public class ProjectServiceTests : IDisposable
 	[Fact]
 	public async Task GetMyProjectsAsync_ReturnsOnlyManagerOwnProjects()
 	{
-		var (managerId, otherManagerId) = await SeedTwoManagersAsync();
-		await SeedProjectForManagerAsync(managerId, "Alpha Portal");
-		await SeedProjectForManagerAsync(managerId, "Beta CRM");
-		await SeedProjectForManagerAsync(otherManagerId, "Other Project");
+		const long managerId = 10;
+		_projectRepository
+			.Setup(repository => repository.GetByManagerUserIdAsync(managerId, It.IsAny<CancellationToken>()))
+			.ReturnsAsync(
+			[
+				CreateProject(1, managerId, "Alpha Portal"),
+				CreateProject(2, managerId, "Beta CRM")
+			]);
 
 		var result = await _projectService.GetMyProjectsAsync(managerId);
 
@@ -87,10 +94,14 @@ public class ProjectServiceTests : IDisposable
 	[Fact]
 	public async Task GetProjectDetailAsync_WhenNotProjectManager_ThrowsValidation()
 	{
-		var (managerId, otherManagerId) = await SeedTwoManagersAsync();
-		var projectId = await SeedProjectForManagerAsync(managerId, "Alpha Portal");
+		const long managerId = 10;
+		const long otherManagerId = 20;
+		var project = CreateProject(1, managerId, "Alpha Portal");
+		_projectRepository
+			.Setup(repository => repository.GetDetailByIdAsync(project.Id, It.IsAny<CancellationToken>()))
+			.ReturnsAsync(project);
 
-		var act = () => _projectService.GetProjectDetailAsync(projectId, otherManagerId);
+		var act = () => _projectService.GetProjectDetailAsync(project.Id, otherManagerId);
 
 		await act.Should().ThrowAsync<ValidationException>()
 			.WithMessage("*your own projects*");
@@ -99,37 +110,55 @@ public class ProjectServiceTests : IDisposable
 	[Fact]
 	public async Task EvaluateAllProjectsHealthAsync_WithOverdueMilestone_SetsAmber()
 	{
-		var projectId = await SeedActiveProjectWithMilestoneAsync(
+		var project = CreateHealthProject(
 			dueDate: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-3),
 			milestoneStatus: MilestoneStatuses.InProgress);
+		_projectRepository
+			.Setup(repository => repository.GetActiveProjectsWithMilestonesAsync(It.IsAny<CancellationToken>()))
+			.ReturnsAsync([project]);
+		_timesheetRepository
+			.Setup(repository => repository.GetLoggedHoursForProjectWeekAsync(project.Id, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(40);
 
 		await _projectService.EvaluateAllProjectsHealthAsync();
 
-		var project = await _context.Projects.FindAsync(projectId);
-		project!.HealthStatus.Should().Be("AMBER");
+		_projectRepository.Verify(
+			repository => repository.UpdateHealthStatusAsync(project.Id, "AMBER", It.IsAny<CancellationToken>()),
+			Times.Once);
 	}
 
 	[Fact]
 	public async Task EvaluateAllProjectsHealthAsync_WithMultipleFlags_SetsRed()
 	{
 		var today = DateOnly.FromDateTime(DateTime.UtcNow);
-		var projectId = await SeedActiveProjectWithMilestoneAsync(
+		var project = CreateHealthProject(
 			dueDate: today.AddDays(-3),
 			milestoneStatus: MilestoneStatuses.InProgress,
 			endDate: today.AddDays(14));
+		_projectRepository
+			.Setup(repository => repository.GetActiveProjectsWithMilestonesAsync(It.IsAny<CancellationToken>()))
+			.ReturnsAsync([project]);
+		_timesheetRepository
+			.Setup(repository => repository.GetLoggedHoursForProjectWeekAsync(project.Id, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(40);
 
 		await _projectService.EvaluateAllProjectsHealthAsync();
 
-		var project = await _context.Projects.FindAsync(projectId);
-		project!.HealthStatus.Should().Be("RED");
+		_projectRepository.Verify(
+			repository => repository.UpdateHealthStatusAsync(project.Id, "RED", It.IsAny<CancellationToken>()),
+			Times.Once);
 	}
 
 	[Fact]
 	public async Task AddMilestoneAsync_WithValidDueDate_AddsMilestone()
 	{
-		var projectId = await SeedProjectAsync();
+		var project = ArrangeProject();
+		_projectRepository
+			.Setup(repository => repository.AddMilestoneAsync(It.IsAny<ProjectMilestone>(), It.IsAny<CancellationToken>()))
+			.Callback<ProjectMilestone, CancellationToken>((milestone, _) => milestone.Id = 11)
+			.ReturnsAsync((ProjectMilestone milestone, CancellationToken _) => milestone);
 
-		var result = await _projectService.AddMilestoneAsync(projectId, new CreateMilestoneDto
+		var result = await _projectService.AddMilestoneAsync(project.Id, new CreateMilestoneDto
 		{
 			MilestoneTitle = "Backend API",
 			DueDate = new DateOnly(2026, 4, 15),
@@ -141,89 +170,57 @@ public class ProjectServiceTests : IDisposable
 		result.MilestoneStatus.Should().Be(MilestoneStatuses.NotStarted);
 	}
 
-	private async Task<long> SeedManagerAsync()
+	private void ArrangeManager(long managerId)
 	{
-		var now = DateTime.UtcNow;
-		var manager = new User
-		{
-			Username = "manager",
-			Email = "manager@techserve.com",
-			FullName = "Manager",
-			PasswordHash = "hash",
-			Role = Roles.Manager,
-			IsActive = true,
-			CreatedAt = now,
-			UpdatedAt = now
-		};
-
-		_context.Users.Add(manager);
-		await _context.SaveChangesAsync();
-		return manager.Id;
+		_userRepository
+			.Setup(repository => repository.GetByIdAsync(managerId, It.IsAny<CancellationToken>()))
+			.ReturnsAsync(new User
+			{
+				Id = managerId,
+				Role = Roles.Manager,
+				IsActive = true
+			});
 	}
 
-	private async Task<(long ManagerId, long OtherManagerId)> SeedTwoManagersAsync()
+	private Project ArrangeProject(long projectId = 1, long managerId = 10)
 	{
-		var now = DateTime.UtcNow;
-		var manager = new User
-		{
-			Username = "manager1",
-			Email = "manager1@techserve.com",
-			FullName = "Manager One",
-			PasswordHash = "hash",
-			Role = Roles.Manager,
-			IsActive = true,
-			CreatedAt = now,
-			UpdatedAt = now
-		};
-		var otherManager = new User
-		{
-			Username = "manager2",
-			Email = "manager2@techserve.com",
-			FullName = "Manager Two",
-			PasswordHash = "hash",
-			Role = Roles.Manager,
-			IsActive = true,
-			CreatedAt = now,
-			UpdatedAt = now
-		};
-
-		_context.Users.AddRange(manager, otherManager);
-		await _context.SaveChangesAsync();
-		return (manager.Id, otherManager.Id);
+		var project = CreateProject(projectId, managerId, "Alpha Portal");
+		project.StartDate = new DateOnly(2026, 1, 1);
+		project.EndDate = new DateOnly(2026, 6, 30);
+		project.TotalStoryPoints = 120;
+		_projectRepository
+			.Setup(repository => repository.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+			.ReturnsAsync(project);
+		return project;
 	}
 
-	private async Task<long> SeedProjectForManagerAsync(long managerId, string projectName)
+	private static Project CreateProject(long projectId, long managerId, string projectName)
 	{
-		var now = DateTime.UtcNow;
-		var project = new Project
+		return new Project
 		{
-			ProjectCode = $"PRJ-{Guid.NewGuid():N}"[..10],
+			Id = projectId,
+			ProjectCode = $"PRJ-{projectId:D6}",
 			ProjectName = projectName,
 			StartDate = new DateOnly(2026, 1, 1),
 			EndDate = new DateOnly(2026, 6, 30),
 			ProjectStatus = ProjectStatuses.Active,
 			TotalStoryPoints = 100,
 			ManagerUserId = managerId,
-			IsActive = true,
-			CreatedAt = now,
-			UpdatedAt = now
+			HealthStatus = "GREEN",
+			IsActive = true
 		};
-
-		_context.Projects.Add(project);
-		await _context.SaveChangesAsync();
-		return project.Id;
 	}
 
-	private async Task<long> SeedActiveProjectWithMilestoneAsync(
+	private static Project CreateHealthProject(
 		DateOnly dueDate,
 		string milestoneStatus,
 		DateOnly? endDate = null)
 	{
-		var managerId = await SeedManagerAsync();
 		var now = DateTime.UtcNow;
 		var projectEnd = endDate ?? new DateOnly(2026, 12, 31);
-		var project = new Project
+		return new Project
 		{
+			Id = 501,
 			ProjectCode = "PRJ-HEALTH",
 			ProjectName = "Health Test Project",
 			StartDate = new DateOnly(2026, 1, 1),
@@ -231,56 +228,35 @@ public class ProjectServiceTests : IDisposable
 			ProjectStatus = ProjectStatuses.Active,
 			HealthStatus = "GREEN",
 			TotalStoryPoints = 100,
-			ManagerUserId = managerId,
+			ManagerUserId = 10,
 			IsActive = true,
 			CreatedAt = now,
-			UpdatedAt = now
+			UpdatedAt = now,
+			Milestones =
+			[
+				new ProjectMilestone
+				{
+					ProjectId = 501,
+					MilestoneTitle = "Backend API",
+					DueDate = dueDate,
+					StoryPoints = 40,
+					SortOrder = 1,
+					MilestoneStatus = milestoneStatus,
+					CreatedAt = now,
+					UpdatedAt = now
+				}
+			],
+			ProjectAllocations =
+			[
+				new ProjectAllocation
+				{
+					ResourceProfileId = 20,
+					AllocationPercentage = 100,
+					AllocationStatus = "ACTIVE",
+					AllocationStartDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-7),
+					AllocationEndDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30)
+				}
+			]
 		};
-
-		_context.Projects.Add(project);
-		await _context.SaveChangesAsync();
-
-		_context.ProjectMilestones.Add(new ProjectMilestone
-		{
-			ProjectId = project.Id,
-			MilestoneTitle = "Backend API",
-			DueDate = dueDate,
-			StoryPoints = 40,
-			SortOrder = 1,
-			MilestoneStatus = milestoneStatus,
-			CreatedAt = now,
-			UpdatedAt = now
-		});
-
-		await _context.SaveChangesAsync();
-		return project.Id;
-	}
-
-	private async Task<long> SeedProjectAsync()
-	{
-		var managerId = await SeedManagerAsync();
-		var now = DateTime.UtcNow;
-		var project = new Project
-		{
-			ProjectCode = "PRJ-000001",
-			ProjectName = "Alpha Portal",
-			StartDate = new DateOnly(2026, 1, 1),
-			EndDate = new DateOnly(2026, 6, 30),
-			ProjectStatus = ProjectStatuses.Active,
-			TotalStoryPoints = 120,
-			ManagerUserId = managerId,
-			IsActive = true,
-			CreatedAt = now,
-			UpdatedAt = now
-		};
-
-		_context.Projects.Add(project);
-		await _context.SaveChangesAsync();
-		return project.Id;
-	}
-
-	public void Dispose()
-	{
-		_context.Dispose();
 	}
 }

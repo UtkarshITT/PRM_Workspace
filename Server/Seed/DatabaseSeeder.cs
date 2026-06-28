@@ -22,7 +22,6 @@ public static class DatabaseSeeder
 			await SeedAdminAsync(context);
 		}
 
-		await EnsureAdminResourceProfileAsync(context);
 		await SeedDemoDataIfNeededAsync(context);
 		await SeedDemoProjectsIfNeededAsync(context);
 	}
@@ -40,36 +39,6 @@ public static class DatabaseSeeder
 			Role = Roles.Admin,
 			IsActive = true,
 			ForcePasswordChange = true,
-			CreatedAt = now,
-			UpdatedAt = now
-		});
-
-		await context.SaveChangesAsync();
-	}
-
-	private static async Task EnsureAdminResourceProfileAsync(PrmDbContext context)
-	{
-		var admin = await context.Users.FirstOrDefaultAsync(user => user.Username == "admin");
-		if (admin == null)
-		{
-			return;
-		}
-
-		var hasResourceProfile = await context.ResourceProfiles.AnyAsync(resourceProfile => resourceProfile.UserId == admin.Id);
-		if (hasResourceProfile)
-		{
-			return;
-		}
-
-		var now = DateTime.UtcNow;
-		context.ResourceProfiles.Add(new ResourceProfile
-		{
-			UserId = admin.Id,
-			ResourceProfileCode = $"EMP-{admin.Id:D6}",
-			Department = "IT",
-			Designation = "System Administrator",
-			EmploymentStatus = "BENCH",
-			IsActive = true,
 			CreatedAt = now,
 			UpdatedAt = now
 		});
@@ -114,20 +83,6 @@ public static class DatabaseSeeder
 			};
 
 			context.Users.Add(manager);
-			await context.SaveChangesAsync();
-
-			context.ResourceProfiles.Add(new ResourceProfile
-			{
-				UserId = manager.Id,
-				ResourceProfileCode = $"EMP-{manager.Id:D6}",
-				Department = "Delivery",
-				Designation = "Delivery Manager",
-				EmploymentStatus = "BENCH",
-				IsActive = true,
-				CreatedAt = now,
-				UpdatedAt = now
-			});
-
 			await context.SaveChangesAsync();
 			managers.Add(manager);
 		}

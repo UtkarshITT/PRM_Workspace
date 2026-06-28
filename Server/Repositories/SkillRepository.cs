@@ -55,4 +55,18 @@ public class SkillRepository : ISkillRepository
 			.OrderBy(resourceProfileSkill => resourceProfileSkill.Skill.SkillName)
 			.ToListAsync(cancellationToken);
 	}
+
+	public async Task<IReadOnlyDictionary<long, string>> GetNamesByIdsAsync(
+		IReadOnlyList<long> skillIds,
+		CancellationToken cancellationToken = default)
+	{
+		if (skillIds.Count == 0)
+		{
+			return new Dictionary<long, string>();
+		}
+
+		return await _context.Skills
+			.Where(skill => skillIds.Contains(skill.Id))
+			.ToDictionaryAsync(skill => skill.Id, skill => skill.SkillName, cancellationToken);
+	}
 }

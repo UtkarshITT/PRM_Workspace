@@ -14,6 +14,7 @@ public interface IProjectRepository
 	Task<IReadOnlyList<Project>> GetByManagerUserIdAsync(long managerUserId, CancellationToken cancellationToken = default);
 	Task<Project?> GetDetailByIdAsync(long projectId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<Project>> GetActiveProjectsWithMilestonesAsync(CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<Project>> GetActiveAtRiskProjectsAsync(CancellationToken cancellationToken = default);
 	Task UpdateHealthStatusAsync(long projectId, string healthStatus, CancellationToken cancellationToken = default);
 	Task UpdateLastRiskSummaryAsync(long projectId, string? summary, CancellationToken cancellationToken = default);
 }

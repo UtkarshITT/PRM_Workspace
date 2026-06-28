@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PRM.Server.Constants;
 using PRM.Server.Data;
+using PRM.Server.Helpers;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories.Interfaces;
 
@@ -59,6 +60,32 @@ public class ResourceProfileRepository : IResourceProfileRepository
 			.ToListAsync(cancellationToken);
 	}
 
+	public async Task<IReadOnlyList<ResourceProfile>> GetAllocatedForWeekAsync(
+		DateOnly weekStart,
+		DateOnly weekEnd,
+		CancellationToken cancellationToken = default)
+	{
+		var allocations = await _context.ProjectAllocations
+			.Include(allocation => allocation.ResourceProfile)
+			.ThenInclude(profile => profile.User)
+			.Include(allocation => allocation.ResourceProfile)
+			.ThenInclude(profile => profile.Manager)
+			.Where(allocation => allocation.AllocationStatus == "ACTIVE")
+			.ToListAsync(cancellationToken);
+
+		return allocations
+			.Where(allocation => UtilizationCalculator.PeriodsOverlap(
+				allocation.AllocationStartDate,
+				allocation.AllocationEndDate,
+				weekStart,
+				weekEnd))
+			.Select(allocation => allocation.ResourceProfile)
+			.Where(profile => profile.IsActive)
+			.GroupBy(profile => profile.Id)
+			.Select(group => group.First())
+			.ToList();
+	}
+
 	public Task<ResourceProfile?> GetTeamMemberAsync(
 		long resourceProfileId,
 		long managerUserId,
@@ -85,6 +112,7 @@ public class ResourceProfileRepository : IResourceProfileRepository
 			.Include(resourceProfile => resourceProfile.Manager)
 			.Include(resourceProfile => resourceProfile.ResourceProfileSkills)
 			.ThenInclude(resourceProfileSkill => resourceProfileSkill.Skill)
+			.Where(resourceProfile => resourceProfile.User.Role == Roles.Employee)
 			.AsQueryable();
 
 		if (!string.IsNullOrWhiteSpace(status))

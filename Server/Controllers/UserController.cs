@@ -52,6 +52,14 @@ public class UserController : ControllerBase
 		return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(users, "Users retrieved."));
 	}
 
+	[HttpGet("role-permissions")]
+	public async Task<ActionResult<ApiResponse<IReadOnlyList<RolePermissionDto>>>> GetRolePermissions(
+		CancellationToken cancellationToken)
+	{
+		var permissions = await _userService.GetRolePermissionsAsync(cancellationToken);
+		return Ok(ApiResponse<IReadOnlyList<RolePermissionDto>>.Ok(permissions, "Role permissions retrieved."));
+	}
+
 	[HttpPut("{id:long}/reset-password")]
 	public async Task<ActionResult<ApiResponse<object>>> ResetPassword(
 		long id,

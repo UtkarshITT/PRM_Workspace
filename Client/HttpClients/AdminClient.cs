@@ -24,6 +24,9 @@ public class AdminClient
 	public Task<ApiResponse<object>> UpdateUserRoleAsync(long userId, UpdateUserRoleRequest request) =>
 		_restClient.PutAsync<object>($"/api/users/{userId}/role", request, requireAuth: true);
 
+	public Task<ApiResponse<List<RolePermissionItem>>> GetRolePermissionsAsync() =>
+		_restClient.GetAsync<List<RolePermissionItem>>("/api/users/role-permissions", requireAuth: true);
+
 	public Task<ApiResponse<object>> DeactivateUserAsync(long userId) =>
 		_restClient.PutAsync<object>($"/api/users/{userId}/deactivate", new { }, requireAuth: true);
 

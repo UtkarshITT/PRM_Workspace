@@ -34,12 +34,12 @@ public class AiIntegrationServiceTests : IDisposable
 		_llmClientFactoryMock.Setup(factory => factory.Create(It.IsAny<string>())).Returns(_llmClientMock.Object);
 
 		_service = new AiIntegrationService(
-			_context,
 			new ResourceProfileRepository(_context),
 			new ProjectRepository(_context),
 			new TimesheetRepository(_context),
 			new SystemConfigRepository(_context),
 			new AiRequestLogRepository(_context),
+			new SkillRepository(_context),
 			_llmClientFactoryMock.Object,
 			NullLogger<AiIntegrationService>.Instance);
 	}

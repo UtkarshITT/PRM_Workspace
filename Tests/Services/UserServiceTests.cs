@@ -24,9 +24,9 @@ public class UserServiceTests : IDisposable
 
 		_context = new PrmDbContext(options);
 		_userService = new UserService(
-			_context,
 			new UserRepository(_context),
-			new ResourceProfileRepository(_context));
+			new ResourceProfileRepository(_context),
+			new AuditLogRepository(_context));
 	}
 
 	[Fact]

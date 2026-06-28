@@ -23,11 +23,12 @@ public class ResourceProfileServiceTeamTests : IDisposable
 
 		_context = new PrmDbContext(options);
 		_resourceProfileService = new ResourceProfileService(
-			_context,
 			new ResourceProfileRepository(_context),
 			new UserRepository(_context),
 			new SkillRepository(_context),
-			new AllocationRepository(_context));
+			new AllocationRepository(_context),
+			new TimesheetRepository(_context),
+			new AuditLogRepository(_context));
 	}
 
 	[Fact]

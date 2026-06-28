@@ -18,4 +18,6 @@ public interface IAllocationRepository
 		DateOnly weekStart,
 		DateOnly weekEnd,
 		CancellationToken cancellationToken = default);
+	Task AddAsync(ProjectAllocation allocation, CancellationToken cancellationToken = default);
+	Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

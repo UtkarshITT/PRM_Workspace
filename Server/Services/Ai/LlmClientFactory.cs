@@ -7,27 +7,27 @@ public interface ILlmClientFactory
 
 public class LlmClientFactory : ILlmClientFactory
 {
-	private readonly IHttpClientFactory _httpClientFactory;
-	private readonly IConfiguration _configuration;
+	private readonly IReadOnlyDictionary<string, ILlmClientRegistration> _registrations;
 
-	public LlmClientFactory(
-		IHttpClientFactory httpClientFactory,
-		IConfiguration configuration)
+	public LlmClientFactory(IEnumerable<ILlmClientRegistration> registrations)
 	{
-		_httpClientFactory = httpClientFactory;
-		_configuration = configuration;
+		_registrations = registrations
+			.SelectMany(registration => registration.ProviderNames.Select(providerName => new
+			{
+				Name = providerName.Trim().ToLowerInvariant(),
+				Registration = registration
+			}))
+			.ToDictionary(item => item.Name, item => item.Registration);
 	}
 
 	public ILlmClient Create(string providerName)
 	{
-		return providerName.Trim().ToLowerInvariant() switch
+		var normalizedProviderName = providerName.Trim().ToLowerInvariant();
+		if (_registrations.TryGetValue(normalizedProviderName, out var registration))
 		{
-			"gemini" => new GeminiClient(_httpClientFactory.CreateClient("GeminiLlm"), _configuration),
-			"groq" => new GroqClient(_httpClientFactory.CreateClient("GroqLlm"), _configuration),
-			"custom" or "ollama" => new CustomGenerateClient(
-				_httpClientFactory.CreateClient("CustomGenerateLlm"),
-				_configuration),
-			_ => throw new ArgumentException($"Unknown LLM provider: {providerName}")
-		};
+			return registration.Create();
+		}
+
+		throw new ArgumentException($"Unknown LLM provider: {providerName}");
 	}
 }

@@ -67,7 +67,7 @@ public class SubmitTimesheetScreen
 		var tags = tagsResponse.Data;
 		var otherTag = tags.FirstOrDefault(tag => tag.TagCode == "OTHER");
 		var lineItems = new List<TimesheetLineItemRequest>();
-		const decimal maxWeeklyHours = 40;
+		var maxWeeklyHours = allocationsResponse.Data.MaxWeeklyHours;
 
 		for (var index = 0; index < allocations.Count; index++)
 		{

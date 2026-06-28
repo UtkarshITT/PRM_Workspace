@@ -36,6 +36,12 @@ public class UpdateUserRoleRequest
 	public string Role { get; set; } = string.Empty;
 }
 
+public class RolePermissionItem
+{
+	public string Role { get; set; } = string.Empty;
+	public List<string> Permissions { get; set; } = [];
+}
+
 public class EmployeeListItem
 {
 	public long Id { get; set; }

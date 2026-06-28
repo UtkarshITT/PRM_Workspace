@@ -27,7 +27,6 @@ public class TimesheetServiceTests : IDisposable
 
 		_context = new PrmDbContext(options);
 		_timesheetService = new TimesheetService(
-			_context,
 			new TimesheetRepository(_context),
 			new AllocationRepository(_context),
 			new ActivityTagRepository(_context),
@@ -193,12 +192,14 @@ public class TimesheetServiceTests : IDisposable
 
 	private async Task<long> SeedEmployeeWithAllocationForLastWeekAsync()
 	{
-		var (employeeId, _, _) = await SeedEmployeeWithAllocationAsync();
+		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
+		var (employeeId, _, _) = await SeedEmployeeWithAllocationAsync(allocationWeek: lastWeekStart);
 		return employeeId;
 	}
 
 	private async Task<(long EmployeeId, long ProjectId, IReadOnlyList<long> TagIds)> SeedEmployeeWithAllocationAsync(
-		decimal allocationPercent = 100)
+		decimal allocationPercent = 100,
+		DateOnly? allocationWeek = null)
 	{
 		var now = DateTime.UtcNow;
 		var manager = new User
@@ -279,14 +280,14 @@ public class TimesheetServiceTests : IDisposable
 			UpdatedAt = now
 		});
 
-		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
+		var effectiveAllocationWeek = allocationWeek ?? TestWeek;
 		_context.ProjectAllocations.Add(new ProjectAllocation
 		{
 			ResourceProfileId = resourceProfile.Id,
 			ProjectId = project.Id,
 			AllocationPercentage = allocationPercent,
-			AllocationStartDate = lastWeekStart.AddMonths(-1),
-			AllocationEndDate = lastWeekStart.AddMonths(2),
+			AllocationStartDate = effectiveAllocationWeek.AddMonths(-1),
+			AllocationEndDate = effectiveAllocationWeek.AddMonths(2),
 			AllocationStatus = "ACTIVE",
 			AllocatedByManagerId = manager.Id,
 			CreatedAt = now,
@@ -322,8 +323,8 @@ public class TimesheetServiceTests : IDisposable
 			ResourceProfileId = employeeId,
 			ProjectId = project.Id,
 			AllocationPercentage = 100,
-			AllocationStartDate = new DateOnly(2026, 3, 1),
-			AllocationEndDate = new DateOnly(2026, 6, 30),
+			AllocationStartDate = TestWeek.AddMonths(-1),
+			AllocationEndDate = TestWeek.AddMonths(2),
 			AllocationStatus = "ACTIVE",
 			AllocatedByManagerId = managerId,
 			CreatedAt = now,

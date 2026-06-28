@@ -20,7 +20,7 @@ public class CustomGenerateClientTests
 			""");
 		var httpClient = new HttpClient(handler)
 		{
-			BaseAddress = new Uri("http://164.52.211.238")
+			BaseAddress = new Uri("http://localhost:11434")
 		};
 		var client = new CustomGenerateClient(
 			httpClient,
@@ -29,7 +29,7 @@ public class CustomGenerateClientTests
 		var result = await client.GenerateResponseAsync("Hello", "test-key");
 
 		result.Should().Be("{\"summary\":\"ok\"}");
-		handler.RequestUri.Should().Be("http://164.52.211.238/api/generate");
+		handler.RequestUri.Should().Be("http://localhost:11434/api/generate");
 		handler.ApiKey.Should().Be("test-key");
 		handler.RequestBody.Should().Contain("\"model\":\"gemma3:12b-it-q8_0\"");
 		handler.RequestBody.Should().Contain("\"prompt\":\"Hello\"");
@@ -41,11 +41,12 @@ public class CustomGenerateClientTests
 	{
 		var httpClient = new HttpClient(new CapturingHandler("{}"))
 		{
-			BaseAddress = new Uri("http://164.52.211.238")
+			BaseAddress = new Uri("http://localhost:11434")
 		};
-		var factory = new LlmClientFactory(
+		var registration = new CustomLlmClientRegistration(
 			new StaticHttpClientFactory(httpClient),
 			BuildConfiguration());
+		var factory = new LlmClientFactory([registration]);
 
 		var client = factory.Create("Custom");
 
@@ -57,7 +58,7 @@ public class CustomGenerateClientTests
 		return new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["Llm:Custom:BaseUrl"] = "http://164.52.211.238",
+				["Llm:Custom:BaseUrl"] = "http://localhost:11434",
 				["Llm:Custom:Model"] = "gemma3:12b-it-q8_0"
 			})
 			.Build();
