@@ -26,9 +26,9 @@ public class ManageProjectsScreen
 			Console.WriteLine("  2. View All Projects");
 			Console.WriteLine("  3. Update Project Details");
 			Console.WriteLine("  4. Manage Milestones");
-			Console.WriteLine("  0. Back");
+			Console.WriteLine("  5. Back");
 			Console.WriteLine();
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -44,7 +44,7 @@ public class ManageProjectsScreen
 				case "4":
 					await ManageMilestonesAsync();
 					break;
-				case "0":
+				case "5":
 					running = false;
 					break;
 				default:
@@ -60,15 +60,26 @@ public class ManageProjectsScreen
 		Console.Clear();
 		ConsoleHelper.WriteHeader("Create Project");
 
-		var name = ConsoleHelper.ReadInput("Project Name        : ");
-		var description = ConsoleHelper.ReadInput("Description         : ");
-		if (!TryReadDate("Start Date (DD-MM-YYYY): ", out var startDate))
+		if (!TryReadRequired("Project Name        : ", "Project name is required.", out var name))
 		{
 			return;
 		}
 
-		if (!TryReadDate("End Date (DD-MM-YYYY)  : ", out var endDate))
+		var description = ConsoleHelper.ReadInput("Description         : ");
+		if (!TryReadDate("Start Date (DD-MM-YYYY): ", allowPast: false, out var startDate))
 		{
+			return;
+		}
+
+		if (!TryReadDate("End Date (DD-MM-YYYY)  : ", allowPast: false, out var endDate))
+		{
+			return;
+		}
+
+		if (endDate < startDate)
+		{
+			ConsoleHelper.WriteError("End date cannot be before start date.");
+			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
@@ -78,17 +89,13 @@ public class ManageProjectsScreen
 			return;
 		}
 
-		if (!long.TryParse(ConsoleHelper.ReadInput("Manager User ID     : "), out var managerId))
+		if (!TryReadPositiveLong("Manager User ID     : ", "Manager user ID must be a positive number.", out var managerId))
 		{
-			ConsoleHelper.WriteError("Invalid manager user ID.");
-			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
-		if (!int.TryParse(ConsoleHelper.ReadInput("Total Story Points  : "), out var storyPoints))
+		if (!TryReadNonNegativeInt("Total Story Points  : ", "Story points cannot be negative.", out var storyPoints))
 		{
-			ConsoleHelper.WriteError("Invalid story points.");
-			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
@@ -110,6 +117,7 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -152,35 +160,59 @@ public class ManageProjectsScreen
 			return;
 		}
 
-		var name = ConsoleHelper.ReadInput("Project Name        : ");
-		var description = ConsoleHelper.ReadInput("Description         : ");
-		if (!TryReadDate("Start Date (DD-MM-YYYY): ", out var startDate))
+		var project = await GetProjectForUpdateAsync(projectId);
+		if (project == null)
 		{
 			return;
 		}
 
-		if (!TryReadDate("End Date (DD-MM-YYYY)  : ", out var endDate))
+		var currentStartDate = DateOnly.Parse(project.StartDate, CultureInfo.InvariantCulture);
+		var currentEndDate = DateOnly.Parse(project.EndDate, CultureInfo.InvariantCulture);
+
+		ConsoleHelper.WriteKeepCurrentHint();
+		var nameInput = ConsoleHelper.ReadOptionalUpdateInput("Project Name       ", project.ProjectName);
+		var descriptionInput = ConsoleHelper.ReadOptionalUpdateInput("Description        ", project.Description);
+		var name = string.IsNullOrWhiteSpace(nameInput) ? project.ProjectName : nameInput;
+		var description = ResolveOptionalUpdateValue(descriptionInput, project.Description);
+
+		if (!TryReadUpdateDate("Start Date (DD-MM-YYYY)", currentStartDate, out var startDate))
 		{
 			return;
 		}
 
-		var status = PromptProjectStatus(includeCompleted: true);
+		if (!TryReadUpdateDate("End Date (DD-MM-YYYY)  ", currentEndDate, out var endDate))
+		{
+			return;
+		}
+
+		if (endDate < startDate)
+		{
+			ConsoleHelper.WriteError("End date cannot be before start date.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		var status = PromptProjectStatus(includeCompleted: true, currentStatus: project.ProjectStatus);
 		if (status == null)
 		{
 			return;
 		}
 
-		if (!long.TryParse(ConsoleHelper.ReadInput("Manager User ID     : "), out var managerId))
+		if (!TryReadUpdatePositiveLong(
+			    "Manager User ID     ",
+			    project.ManagerUserId,
+			    "Manager user ID must be a positive number.",
+			    out var managerId))
 		{
-			ConsoleHelper.WriteError("Invalid manager user ID.");
-			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
-		if (!int.TryParse(ConsoleHelper.ReadInput("Total Story Points  : "), out var storyPoints))
+		if (!TryReadUpdateNonNegativeInt(
+			    "Total Story Points  ",
+			    project.TotalStoryPoints,
+			    "Story points cannot be negative.",
+			    out var storyPoints))
 		{
-			ConsoleHelper.WriteError("Invalid story points.");
-			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
@@ -202,9 +234,30 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
+	}
+
+	private async Task<ProjectListItem?> GetProjectForUpdateAsync(long projectId)
+	{
+		var response = await _adminClient.GetProjectsAsync();
+		if (!response.Success || response.Data == null)
+		{
+			WriteApiError(response);
+			return null;
+		}
+
+		var project = response.Data.FirstOrDefault(item => item.Id == projectId);
+		if (project != null)
+		{
+			return project;
+		}
+
+		ConsoleHelper.WriteError("Project not found.");
+		ConsoleHelper.PressEnterToContinue();
+		return null;
 	}
 
 	private async Task ManageMilestonesAsync()
@@ -254,8 +307,8 @@ public class ManageProjectsScreen
 			Console.WriteLine();
 			Console.WriteLine("  1. Add Milestone");
 			Console.WriteLine("  2. Update Milestone Status");
-			Console.WriteLine("  0. Back");
-			Console.Write("Select option: ");
+			Console.WriteLine("  3. Back");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -265,7 +318,7 @@ public class ManageProjectsScreen
 				case "2":
 					await UpdateMilestoneStatusAsync(projectId, milestones);
 					break;
-				case "0":
+				case "3":
 					running = false;
 					break;
 			}
@@ -275,7 +328,7 @@ public class ManageProjectsScreen
 	private async Task AddMilestoneAsync(long projectId, int existingCount)
 	{
 		var title = ConsoleHelper.ReadInput("Milestone Title: ");
-		if (!TryReadDate("Due Date (DD-MM-YYYY): ", out var dueDate))
+		if (!TryReadDate("Due Date (DD-MM-YYYY): ", allowPast: true, out var dueDate))
 		{
 			return;
 		}
@@ -302,6 +355,7 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -324,7 +378,8 @@ public class ManageProjectsScreen
 			return;
 		}
 
-		var status = PromptMilestoneStatus();
+		ConsoleHelper.WriteKeepCurrentHint();
+		var status = PromptMilestoneStatus(milestone.MilestoneStatus);
 		if (status == null)
 		{
 			return;
@@ -342,16 +397,24 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
 	}
 
-	private static bool TryReadDate(string prompt, out DateOnly date)
+	private static bool TryReadDate(string prompt, bool allowPast, out DateOnly date)
 	{
 		var input = ConsoleHelper.ReadInput(prompt);
 		if (DateFormatHelper.TryParseInput(input, out date))
 		{
+			if (!allowPast && date < DateOnly.FromDateTime(DateTime.Today))
+			{
+				ConsoleHelper.WriteError("Date cannot be in the past.");
+				ConsoleHelper.PressEnterToContinue();
+				return false;
+			}
+
 			return true;
 		}
 
@@ -361,12 +424,119 @@ public class ManageProjectsScreen
 		return false;
 	}
 
-	private static string? PromptProjectStatus(bool includeCompleted)
+	private static bool TryReadUpdateDate(string label, DateOnly currentDate, out DateOnly date)
+	{
+		var input = ConsoleHelper.ReadOptionalUpdateInput(label, DateFormatHelper.FormatDisplay(currentDate));
+		if (string.IsNullOrWhiteSpace(input))
+		{
+			date = currentDate;
+			return true;
+		}
+
+		if (!DateFormatHelper.TryParseInput(input, out date))
+		{
+			ConsoleHelper.WriteError("Invalid date. Use DD-MM-YYYY.");
+			ConsoleHelper.PressEnterToContinue();
+			return false;
+		}
+
+		if (date < DateOnly.FromDateTime(DateTime.Today))
+		{
+			ConsoleHelper.WriteError("Date cannot be in the past.");
+			ConsoleHelper.PressEnterToContinue();
+			return false;
+		}
+
+		return true;
+	}
+
+	private static bool TryReadRequired(string prompt, string error, out string value)
+	{
+		value = ConsoleHelper.ReadInput(prompt);
+		if (!string.IsNullOrWhiteSpace(value))
+		{
+			return true;
+		}
+
+		ConsoleHelper.WriteError(error);
+		ConsoleHelper.PressEnterToContinue();
+		return false;
+	}
+
+	private static bool TryReadPositiveLong(string prompt, string error, out long value)
+	{
+		if (long.TryParse(ConsoleHelper.ReadInput(prompt), out value) && value > 0)
+		{
+			return true;
+		}
+
+		ConsoleHelper.WriteError(error);
+		ConsoleHelper.PressEnterToContinue();
+		return false;
+	}
+
+	private static bool TryReadUpdatePositiveLong(string label, long currentValue, string error, out long value)
+	{
+		var input = ConsoleHelper.ReadOptionalUpdateInput(label, currentValue.ToString(CultureInfo.InvariantCulture));
+		if (string.IsNullOrWhiteSpace(input))
+		{
+			value = currentValue;
+			return true;
+		}
+
+		if (long.TryParse(input, out value) && value > 0)
+		{
+			return true;
+		}
+
+		ConsoleHelper.WriteError(error);
+		ConsoleHelper.PressEnterToContinue();
+		return false;
+	}
+
+	private static bool TryReadNonNegativeInt(string prompt, string error, out int value)
+	{
+		if (int.TryParse(ConsoleHelper.ReadInput(prompt), out value) && value >= 0)
+		{
+			return true;
+		}
+
+		ConsoleHelper.WriteError(error);
+		ConsoleHelper.PressEnterToContinue();
+		return false;
+	}
+
+	private static bool TryReadUpdateNonNegativeInt(string label, int currentValue, string error, out int value)
+	{
+		var input = ConsoleHelper.ReadOptionalUpdateInput(label, currentValue.ToString(CultureInfo.InvariantCulture));
+		if (string.IsNullOrWhiteSpace(input))
+		{
+			value = currentValue;
+			return true;
+		}
+
+		if (int.TryParse(input, out value) && value >= 0)
+		{
+			return true;
+		}
+
+		ConsoleHelper.WriteError(error);
+		ConsoleHelper.PressEnterToContinue();
+		return false;
+	}
+
+	private static string? PromptProjectStatus(bool includeCompleted, string? currentStatus = null)
 	{
 		Console.WriteLine("Status: (1) PLANNED  (2) ACTIVE  (3) ON_HOLD" + (includeCompleted ? "  (4) COMPLETED" : ""));
-		Console.Write("Enter choice: ");
+		Console.Write(string.IsNullOrWhiteSpace(currentStatus) ? "Enter choice: " : $"Enter choice [{currentStatus}]: ");
 
-		return Console.ReadLine()?.Trim() switch
+		var input = Console.ReadLine()?.Trim();
+		if (string.IsNullOrWhiteSpace(input) && !string.IsNullOrWhiteSpace(currentStatus))
+		{
+			return currentStatus;
+		}
+
+		var status = input switch
 		{
 			"1" => "PLANNED",
 			"2" => "ACTIVE",
@@ -374,20 +544,54 @@ public class ManageProjectsScreen
 			"4" when includeCompleted => "COMPLETED",
 			_ => null
 		};
+
+		if (status != null)
+		{
+			return status;
+		}
+
+		ConsoleHelper.WriteError("Invalid project status selection.");
+		ConsoleHelper.PressEnterToContinue();
+		return null;
 	}
 
-	private static string? PromptMilestoneStatus()
+	private static string? PromptMilestoneStatus(string? currentStatus = null)
 	{
 		Console.WriteLine("New Status: (1) NOT_STARTED  (2) IN_PROGRESS  (3) DONE");
-		Console.Write("Enter choice: ");
+		Console.Write(string.IsNullOrWhiteSpace(currentStatus) ? "Enter choice: " : $"Enter choice [{currentStatus}]: ");
 
-		return Console.ReadLine()?.Trim() switch
+		var input = Console.ReadLine()?.Trim();
+		if (string.IsNullOrWhiteSpace(input) && !string.IsNullOrWhiteSpace(currentStatus))
+		{
+			return currentStatus;
+		}
+
+		var status = input switch
 		{
 			"1" => "NOT_STARTED",
 			"2" => "IN_PROGRESS",
 			"3" => "DONE",
 			_ => null
 		};
+
+		if (status != null)
+		{
+			return status;
+		}
+
+		ConsoleHelper.WriteError("Invalid milestone status selection.");
+		ConsoleHelper.PressEnterToContinue();
+		return null;
+	}
+
+	private static string? ResolveOptionalUpdateValue(string input, string? currentValue)
+	{
+		if (string.IsNullOrWhiteSpace(input))
+		{
+			return currentValue;
+		}
+
+		return input == "-" ? null : input;
 	}
 
 	private static void WriteApiError<T>(Models.ApiResponse<T> response)

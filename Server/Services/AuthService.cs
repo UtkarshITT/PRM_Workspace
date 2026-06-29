@@ -1,6 +1,5 @@
 using PRM.Server.Exceptions;
 using PRM.Server.Models.DTOs.Auth;
-using PRM.Server.Models.Entities;
 using PRM.Server.Repositories.Interfaces;
 
 namespace PRM.Server.Services.Interfaces;
@@ -14,21 +13,21 @@ public interface IAuthService
 public class AuthService : IAuthService
 {
 	private readonly IUserRepository _userRepository;
-	private readonly IEmployeeRepository _employeeRepository;
-	private readonly IAuditLogRepository _auditLogRepository;
+	private readonly IResourceProfileRepository _resourceProfileRepository;
+	private readonly IAuditService _auditService;
 	private readonly ITokenService _tokenService;
 	private readonly ILogger<AuthService> _logger;
 
 	public AuthService(
 		IUserRepository userRepository,
-		IEmployeeRepository employeeRepository,
-		IAuditLogRepository auditLogRepository,
+		IResourceProfileRepository resourceProfileRepository,
+		IAuditService? auditService,
 		ITokenService tokenService,
 		ILogger<AuthService> logger)
 	{
 		_userRepository = userRepository;
-		_employeeRepository = employeeRepository;
-		_auditLogRepository = auditLogRepository;
+		_resourceProfileRepository = resourceProfileRepository;
+		_auditService = auditService ?? new NoOpAuditService();
 		_tokenService = tokenService;
 		_logger = logger;
 	}
@@ -43,29 +42,28 @@ public class AuthService : IAuthService
 			throw new UnauthorizedAppException("Invalid username or password.");
 		}
 
-		var employee = await _employeeRepository.GetByUserIdAsync(user.Id, cancellationToken);
-		var (token, expiresAt) = _tokenService.GenerateToken(user, employee);
+		var resourceProfile = await _resourceProfileRepository.GetByUserIdAsync(user.Id, cancellationToken);
+		var (token, expiresAt) = _tokenService.GenerateToken(user, resourceProfile);
 
 		user.LastLoginAt = DateTime.UtcNow;
 		user.UpdatedAt = DateTime.UtcNow;
 		await _userRepository.SaveChangesAsync(cancellationToken);
 
-		await _auditLogRepository.WriteAsync(new AuditLog
-		{
-			ActorUserId = user.Id,
-			EntityName = "USERS",
-			EntityId = user.Id,
-			ActionType = "LOGIN",
-			NewValues = $"{{\"username\":\"{user.Username}\"}}",
-			CreatedAt = DateTime.UtcNow
-		}, cancellationToken);
+		await _auditService.LogAsync(
+			user.Id,
+			"LOGIN",
+			"USERS",
+			user.Id,
+			"User logged in",
+			newValues: $"{{\"username\":\"{user.Username}\"}}",
+			cancellationToken: cancellationToken);
 
 		return new LoginResponseDto
 		{
 			Token = token,
 			ExpiresAt = expiresAt,
 			UserId = user.Id,
-			EmployeeId = employee?.Id,
+			ResourceProfileId = resourceProfile?.Id,
 			Role = user.Role,
 			FullName = user.FullName,
 			ForcePasswordChange = user.ForcePasswordChange
@@ -96,16 +94,23 @@ public class AuthService : IAuthService
 		user.ForcePasswordChange = false;
 		user.UpdatedAt = DateTime.UtcNow;
 		await _userRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			user.Id,
+			"CHANGE_PASSWORD",
+			"USERS",
+			user.Id,
+			"User changed password",
+			cancellationToken: cancellationToken);
 
-		var employee = await _employeeRepository.GetByUserIdAsync(user.Id, cancellationToken);
-		var (token, expiresAt) = _tokenService.GenerateToken(user, employee);
+		var resourceProfile = await _resourceProfileRepository.GetByUserIdAsync(user.Id, cancellationToken);
+		var (token, expiresAt) = _tokenService.GenerateToken(user, resourceProfile);
 
 		return new LoginResponseDto
 		{
 			Token = token,
 			ExpiresAt = expiresAt,
 			UserId = user.Id,
-			EmployeeId = employee?.Id,
+			ResourceProfileId = resourceProfile?.Id,
 			Role = user.Role,
 			FullName = user.FullName,
 			ForcePasswordChange = false

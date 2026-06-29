@@ -1,5 +1,4 @@
 using PRM.Server.Constants;
-using PRM.Server.Data;
 using PRM.Server.Exceptions;
 using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Timesheets;
@@ -33,6 +32,7 @@ public interface ITimesheetService
 		long timesheetId,
 		long managerUserId,
 		CancellationToken cancellationToken = default);
+	Task<int> MarkMissedTimesheetsAsync(CancellationToken cancellationToken = default);
 }
 
 public class TimesheetService : ITimesheetService
@@ -40,30 +40,30 @@ public class TimesheetService : ITimesheetService
 	private const decimal DefaultMaxWeeklyHours = 40;
 	private const string OtherTagCode = "OTHER";
 
-	private readonly PrmDbContext _context;
 	private readonly ITimesheetRepository _timesheetRepository;
 	private readonly IAllocationRepository _allocationRepository;
 	private readonly IActivityTagRepository _activityTagRepository;
 	private readonly ISystemConfigRepository _systemConfigRepository;
-	private readonly IEmployeeRepository _employeeRepository;
+	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IProjectRepository _projectRepository;
+	private readonly IAuditService _auditService;
 
 	public TimesheetService(
-		PrmDbContext context,
 		ITimesheetRepository timesheetRepository,
 		IAllocationRepository allocationRepository,
 		IActivityTagRepository activityTagRepository,
 		ISystemConfigRepository systemConfigRepository,
-		IEmployeeRepository employeeRepository,
-		IProjectRepository projectRepository)
+		IResourceProfileRepository resourceProfileRepository,
+		IProjectRepository projectRepository,
+		IAuditService auditService)
 	{
-		_context = context;
 		_timesheetRepository = timesheetRepository;
 		_allocationRepository = allocationRepository;
 		_activityTagRepository = activityTagRepository;
 		_systemConfigRepository = systemConfigRepository;
-		_employeeRepository = employeeRepository;
+		_resourceProfileRepository = resourceProfileRepository;
 		_projectRepository = projectRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<TimesheetSubmittedDto> SubmitTimesheetAsync(
@@ -72,6 +72,16 @@ public class TimesheetService : ITimesheetService
 		CancellationToken cancellationToken = default)
 	{
 		var weekStart = dto.WeekStartDate;
+		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(employeeId, cancellationToken);
+		if (resourceProfile == null || !resourceProfile.IsActive)
+		{
+			throw new NotFoundException($"Employee with ID {employeeId} was not found.");
+		}
+
+		if (resourceProfile.IsTimesheetFrozen)
+		{
+			throw new ValidationException("Timesheet access is frozen. Contact your manager to restore access.");
+		}
 
 		if (weekStart.DayOfWeek != DayOfWeek.Monday)
 		{
@@ -142,74 +152,65 @@ public class TimesheetService : ITimesheetService
 				$"Total hours ({totalHours:0.##}) exceed maximum weekly hours ({maxWeeklyHours:0.##}).");
 		}
 
-		await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
-		try
+		var now = DateTime.UtcNow;
+		var timesheet = new Timesheet
 		{
-			var now = DateTime.UtcNow;
-			var timesheet = new Timesheet
+			ResourceProfileId = employeeId,
+			WeekStartDate = weekStart,
+			Status = "SUBMITTED",
+			TotalHours = totalHours,
+			Remarks = dto.Remarks,
+			SubmittedAt = now,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		foreach (var lineItemDto in dto.LineItems)
+		{
+			var lineItem = new TimesheetLineItem
 			{
-				EmployeeId = employeeId,
-				WeekStartDate = weekStart,
-				Status = "SUBMITTED",
-				TotalHours = totalHours,
-				Remarks = dto.Remarks,
-				SubmittedAt = now,
+				ProjectId = lineItemDto.ProjectId,
+				HoursLogged = lineItemDto.HoursLogged,
 				CreatedAt = now,
 				UpdatedAt = now
 			};
 
-			_context.Timesheets.Add(timesheet);
-			await _context.SaveChangesAsync(cancellationToken);
-
-			foreach (var lineItemDto in dto.LineItems)
+			foreach (var tagId in lineItemDto.ActivityTagIds)
 			{
-				var lineItem = new TimesheetLineItem
+				lineItem.ActivityTags.Add(new TimesheetLineItemActivityTag
 				{
-					TimesheetId = timesheet.Id,
-					ProjectId = lineItemDto.ProjectId,
-					HoursLogged = lineItemDto.HoursLogged,
-					CreatedAt = now,
-					UpdatedAt = now
-				};
-
-				_context.TimesheetLineItems.Add(lineItem);
-				await _context.SaveChangesAsync(cancellationToken);
-
-				foreach (var tagId in lineItemDto.ActivityTagIds)
-				{
-					_context.TimesheetLineItemActivityTags.Add(new TimesheetLineItemActivityTag
-					{
-						TimesheetLineItemId = lineItem.Id,
-						ActivityTagId = tagId,
-						CustomTagText = tagId == otherTagId ? lineItemDto.CustomTagText?.Trim() : null
-					});
-				}
+					ActivityTagId = tagId,
+					CustomTagText = tagId == otherTagId ? lineItemDto.CustomTagText?.Trim() : null
+				});
 			}
 
-			await _context.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
+			timesheet.LineItems.Add(lineItem);
+		}
 
-			return new TimesheetSubmittedDto
-			{
-				TimesheetId = timesheet.Id,
-				WeekStartDate = weekStart,
-				Status = timesheet.Status,
-				TotalHours = totalHours
-			};
-		}
-		catch
+		await _timesheetRepository.AddSubmittedAsync(timesheet, cancellationToken);
+		await _auditService.LogAsync(
+			resourceProfile.UserId,
+			"SUBMIT",
+			"TIMESHEETS",
+			timesheet.Id,
+			"Timesheet submitted",
+			newValues: $"{{\"resourceProfileId\":{employeeId},\"weekStartDate\":\"{weekStart:yyyy-MM-dd}\",\"totalHours\":{totalHours}}}",
+			cancellationToken: cancellationToken);
+
+		return new TimesheetSubmittedDto
 		{
-			await transaction.RollbackAsync(cancellationToken);
-			throw;
-		}
+			TimesheetId = timesheet.Id,
+			WeekStartDate = weekStart,
+			Status = timesheet.Status,
+			TotalHours = totalHours
+		};
 	}
 
 	public async Task<IReadOnlyList<TimesheetListItemDto>> GetMyTimesheetsAsync(
 		long employeeId,
 		CancellationToken cancellationToken = default)
 	{
-		var timesheets = await _timesheetRepository.GetByEmployeeIdAsync(employeeId, cancellationToken);
+		var timesheets = await _timesheetRepository.GetByResourceProfileIdAsync(employeeId, cancellationToken);
 
 		return timesheets.Select(timesheet => new TimesheetListItemDto
 		{
@@ -225,7 +226,7 @@ public class TimesheetService : ITimesheetService
 		long timesheetId,
 		CancellationToken cancellationToken = default)
 	{
-		var timesheet = await _timesheetRepository.GetDetailByIdForEmployeeAsync(timesheetId, employeeId, cancellationToken);
+		var timesheet = await _timesheetRepository.GetDetailByIdForResourceProfileAsync(timesheetId, employeeId, cancellationToken);
 
 		if (timesheet == null)
 		{
@@ -241,16 +242,22 @@ public class TimesheetService : ITimesheetService
 	{
 		var today = DateOnly.FromDateTime(DateTime.UtcNow);
 		var lastCompletedWeek = WeekHelper.GetLastCompletedWeekStart(today);
+		var lastCompletedWeekEnd = WeekHelper.GetWeekEnd(lastCompletedWeek);
 		var messages = new List<string>();
+		var weekAllocations = await GetWeekAllocationsAsync(
+			employeeId,
+			lastCompletedWeek,
+			lastCompletedWeekEnd,
+			cancellationToken);
 
 		var hasTimesheet = await _timesheetRepository.ExistsForWeekAsync(employeeId, lastCompletedWeek, cancellationToken);
-		if (!hasTimesheet)
+		if (weekAllocations.Count > 0 && !hasTimesheet)
 		{
 			messages.Add(
 				$"Reminder: Timesheet for week {lastCompletedWeek:dd-MMM-yyyy} has not been submitted.");
 		}
 
-		var timesheets = await _timesheetRepository.GetByEmployeeIdAsync(employeeId, cancellationToken);
+		var timesheets = await _timesheetRepository.GetByResourceProfileIdAsync(employeeId, cancellationToken);
 		foreach (var missed in timesheets.Where(timesheet => timesheet.Status == "MISSED"))
 		{
 			messages.Add($"Reminder: Timesheet for week {missed.WeekStartDate:dd-MMM-yyyy} was missed.");
@@ -281,13 +288,13 @@ public class TimesheetService : ITimesheetService
 			throw new ValidationException("Week must start on a Monday.");
 		}
 
-		var teamMembers = await _employeeRepository.GetByManagerIdAsync(managerUserId, cancellationToken);
-		var teamEmployeeIds = teamMembers.Select(employee => employee.Id).ToList();
+		var teamMembers = await _resourceProfileRepository.GetByManagerIdAsync(managerUserId, cancellationToken);
+		var teamResourceProfileIds = teamMembers.Select(resourceProfile => resourceProfile.Id).ToList();
 		var managerProjectIds = (await _projectRepository.GetByManagerUserIdAsync(managerUserId, cancellationToken))
 			.Select(project => project.Id)
 			.ToHashSet();
 
-		var timesheets = await _timesheetRepository.GetByTeamAndWeekAsync(teamEmployeeIds, weekStart, cancellationToken);
+		var timesheets = await _timesheetRepository.GetByTeamAndWeekAsync(teamResourceProfileIds, weekStart, cancellationToken);
 		var weekEnd = WeekHelper.GetWeekEnd(weekStart);
 		var rows = new List<TeamTimesheetRowDto>();
 
@@ -300,7 +307,7 @@ public class TimesheetService : ITimesheetService
 					rows.Add(new TeamTimesheetRowDto
 					{
 						TimesheetId = timesheet.Id,
-						EmployeeName = timesheet.Employee.User.FullName,
+						EmployeeName = timesheet.ResourceProfile.User.FullName,
 						ProjectName = lineItem.Project.ProjectName,
 						HoursLogged = lineItem.HoursLogged,
 						Status = timesheet.Status
@@ -309,8 +316,8 @@ public class TimesheetService : ITimesheetService
 			}
 			else if (timesheet.Status == "MISSED")
 			{
-				var allocations = await _allocationRepository.GetActiveByEmployeeIdAsync(
-					timesheet.EmployeeId,
+				var allocations = await _allocationRepository.GetActiveByResourceProfileIdAsync(
+					timesheet.ResourceProfileId,
 					cancellationToken);
 
 				foreach (var allocation in allocations.Where(allocation =>
@@ -325,7 +332,7 @@ public class TimesheetService : ITimesheetService
 					rows.Add(new TeamTimesheetRowDto
 					{
 						TimesheetId = timesheet.Id,
-						EmployeeName = timesheet.Employee.User.FullName,
+						EmployeeName = timesheet.ResourceProfile.User.FullName,
 						ProjectName = project?.ProjectName ?? "Unknown",
 						HoursLogged = 0,
 						Status = timesheet.Status
@@ -352,8 +359,8 @@ public class TimesheetService : ITimesheetService
 			throw new NotFoundException($"Timesheet with ID {timesheetId} was not found.");
 		}
 
-		var teamMember = await _employeeRepository.GetTeamMemberAsync(
-			timesheet.EmployeeId,
+		var teamMember = await _resourceProfileRepository.GetTeamMemberAsync(
+			timesheet.ResourceProfileId,
 			managerUserId,
 			cancellationToken);
 
@@ -363,6 +370,32 @@ public class TimesheetService : ITimesheetService
 		}
 
 		return MapTimesheetDetail(timesheet);
+	}
+
+	public async Task<int> MarkMissedTimesheetsAsync(CancellationToken cancellationToken = default)
+	{
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(today);
+		var lastWeekEnd = WeekHelper.GetWeekEnd(lastWeekStart);
+		var allocations = await _allocationRepository.GetActiveAllocationsForWeekAsync(
+			lastWeekStart,
+			lastWeekEnd,
+			cancellationToken);
+		var resourceProfileIds = allocations.Select(allocation => allocation.ResourceProfileId).Distinct();
+		var createdCount = 0;
+
+		foreach (var resourceProfileId in resourceProfileIds)
+		{
+			if (await _timesheetRepository.ExistsForWeekAsync(resourceProfileId, lastWeekStart, cancellationToken))
+			{
+				continue;
+			}
+
+			await _timesheetRepository.InsertMissedAsync(resourceProfileId, lastWeekStart, cancellationToken);
+			createdCount++;
+		}
+
+		return createdCount;
 	}
 
 	private async Task<decimal> GetMaxWeeklyHoursAsync(CancellationToken cancellationToken)
@@ -383,7 +416,7 @@ public class TimesheetService : ITimesheetService
 		DateOnly weekEnd,
 		CancellationToken cancellationToken)
 	{
-		var activeAllocations = await _allocationRepository.GetActiveByEmployeeIdAsync(employeeId, cancellationToken);
+		var activeAllocations = await _allocationRepository.GetActiveByResourceProfileIdAsync(employeeId, cancellationToken);
 
 		return activeAllocations
 			.Where(allocation => UtilizationCalculator.PeriodsOverlap(

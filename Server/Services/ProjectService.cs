@@ -9,12 +9,12 @@ namespace PRM.Server.Services.Interfaces;
 
 public interface IProjectService
 {
-	Task<ProjectCreatedDto> CreateProjectAsync(CreateProjectDto dto, CancellationToken cancellationToken = default);
+	Task<ProjectCreatedDto> CreateProjectAsync(CreateProjectDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<ProjectListItemDto>> GetAllProjectsAsync(CancellationToken cancellationToken = default);
-	Task UpdateProjectAsync(long projectId, UpdateProjectDto dto, CancellationToken cancellationToken = default);
+	Task UpdateProjectAsync(long projectId, UpdateProjectDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<MilestoneListItemDto>> GetMilestonesAsync(long projectId, CancellationToken cancellationToken = default);
-	Task<MilestoneListItemDto> AddMilestoneAsync(long projectId, CreateMilestoneDto dto, CancellationToken cancellationToken = default);
-	Task UpdateMilestoneStatusAsync(long projectId, long milestoneId, UpdateMilestoneStatusDto dto, CancellationToken cancellationToken = default);
+	Task<MilestoneListItemDto> AddMilestoneAsync(long projectId, CreateMilestoneDto dto, long actorUserId, CancellationToken cancellationToken = default);
+	Task UpdateMilestoneStatusAsync(long projectId, long milestoneId, UpdateMilestoneStatusDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<ManagerProjectListItemDto>> GetMyProjectsAsync(
 		long managerUserId,
 		CancellationToken cancellationToken = default);
@@ -22,6 +22,7 @@ public interface IProjectService
 		long projectId,
 		long managerUserId,
 		CancellationToken cancellationToken = default);
+	Task EvaluateAllProjectsHealthAsync(CancellationToken cancellationToken = default);
 }
 
 public class ProjectService : IProjectService
@@ -32,23 +33,28 @@ public class ProjectService : IProjectService
 	private readonly IUserRepository _userRepository;
 	private readonly ITimesheetRepository _timesheetRepository;
 	private readonly ISystemConfigRepository _systemConfigRepository;
+	private readonly IAuditService _auditService;
 
 	public ProjectService(
 		IProjectRepository projectRepository,
 		IUserRepository userRepository,
 		ITimesheetRepository timesheetRepository,
-		ISystemConfigRepository systemConfigRepository)
+		ISystemConfigRepository systemConfigRepository,
+		IAuditService auditService)
 	{
 		_projectRepository = projectRepository;
 		_userRepository = userRepository;
 		_timesheetRepository = timesheetRepository;
 		_systemConfigRepository = systemConfigRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<ProjectCreatedDto> CreateProjectAsync(
 		CreateProjectDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
+		ValidateProjectDates(dto.StartDate, dto.EndDate, allowPastStartDate: false);
 		await ValidateManagerAsync(dto.ManagerUserId, cancellationToken);
 
 		var now = DateTime.UtcNow;
@@ -70,6 +76,14 @@ public class ProjectService : IProjectService
 		await _projectRepository.AddAsync(project, cancellationToken);
 		project.ProjectCode = $"PRJ-{project.Id:D6}";
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"CREATE",
+			"PROJECTS",
+			project.Id,
+			"Project created",
+			newValues: $"{{\"projectName\":\"{project.ProjectName}\",\"managerUserId\":{project.ManagerUserId}}}",
+			cancellationToken: cancellationToken);
 
 		return new ProjectCreatedDto
 		{
@@ -87,6 +101,7 @@ public class ProjectService : IProjectService
 	public async Task UpdateProjectAsync(
 		long projectId,
 		UpdateProjectDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
@@ -97,8 +112,10 @@ public class ProjectService : IProjectService
 		}
 
 		await ValidateManagerAsync(dto.ManagerUserId, cancellationToken);
+		ValidateProjectDates(dto.StartDate, dto.EndDate, allowPastStartDate: dto.StartDate == project.StartDate);
 		ValidateMilestonesWithinProjectDates(project.Milestones, dto.StartDate, dto.EndDate);
 
+		var oldValues = $"{{\"projectName\":\"{project.ProjectName}\",\"status\":\"{project.ProjectStatus}\"}}";
 		project.ProjectName = dto.ProjectName;
 		project.Description = dto.Description;
 		project.StartDate = dto.StartDate;
@@ -109,6 +126,15 @@ public class ProjectService : IProjectService
 		project.UpdatedAt = DateTime.UtcNow;
 
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE",
+			"PROJECTS",
+			project.Id,
+			"Project updated",
+			oldValues: oldValues,
+			newValues: $"{{\"projectName\":\"{project.ProjectName}\",\"status\":\"{project.ProjectStatus}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<MilestoneListItemDto>> GetMilestonesAsync(
@@ -123,6 +149,7 @@ public class ProjectService : IProjectService
 	public async Task<MilestoneListItemDto> AddMilestoneAsync(
 		long projectId,
 		CreateMilestoneDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
@@ -148,6 +175,14 @@ public class ProjectService : IProjectService
 		};
 
 		await _projectRepository.AddMilestoneAsync(milestone, cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"ADD_MILESTONE",
+			"PROJECT_MILESTONES",
+			milestone.Id,
+			$"Milestone added to project {projectId}",
+			newValues: $"{{\"projectId\":{projectId},\"milestoneTitle\":\"{milestone.MilestoneTitle}\"}}",
+			cancellationToken: cancellationToken);
 		return MapMilestone(milestone);
 	}
 
@@ -155,6 +190,7 @@ public class ProjectService : IProjectService
 		long projectId,
 		long milestoneId,
 		UpdateMilestoneStatusDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		await EnsureProjectExistsAsync(projectId, cancellationToken);
@@ -166,6 +202,7 @@ public class ProjectService : IProjectService
 			throw new NotFoundException($"Milestone {milestoneId} was not found for project {projectId}.");
 		}
 
+		var oldStatus = milestone.MilestoneStatus;
 		milestone.MilestoneStatus = dto.MilestoneStatus;
 		milestone.UpdatedAt = DateTime.UtcNow;
 		milestone.CompletedAt = dto.MilestoneStatus == MilestoneStatuses.Done
@@ -173,6 +210,15 @@ public class ProjectService : IProjectService
 			: null;
 
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE_MILESTONE_STATUS",
+			"PROJECT_MILESTONES",
+			milestone.Id,
+			$"Milestone status updated for project {projectId}",
+			oldValues: $"{{\"status\":\"{oldStatus}\"}}",
+			newValues: $"{{\"status\":\"{milestone.MilestoneStatus}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<ManagerProjectListItemDto>> GetMyProjectsAsync(
@@ -223,13 +269,13 @@ public class ProjectService : IProjectService
 		foreach (var allocation in activeAllocations)
 		{
 			var expectedHours = allocation.AllocationPercentage / 100m * maxWeeklyHours;
-			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectEmployeeWeekAsync(
+			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectResourceProfileWeekAsync(
 				project.Id,
-				allocation.EmployeeId,
+				allocation.ResourceProfileId,
 				lastWeekStart,
 				cancellationToken);
 
-			lastWeekHours.Add((allocation.Employee.User.FullName, loggedHours, expectedHours));
+			lastWeekHours.Add((allocation.ResourceProfile.User.FullName, loggedHours, expectedHours));
 		}
 
 		var riskFlags = ProjectHealthEvaluator.EvaluateRiskFlags(project, activeAllocations, lastWeekHours);
@@ -252,15 +298,45 @@ public class ProjectService : IProjectService
 					IsOverdue = milestone.DueDate < today && milestone.MilestoneStatus != MilestoneStatuses.Done
 				}).ToList(),
 			AllocatedResources = activeAllocations
-				.OrderBy(allocation => allocation.Employee.User.FullName)
+				.OrderBy(allocation => allocation.ResourceProfile.User.FullName)
 				.Select(allocation => new ProjectResourceDto
 				{
-					EmployeeName = allocation.Employee.User.FullName,
+					EmployeeName = allocation.ResourceProfile.User.FullName,
 					AllocationPercentage = allocation.AllocationPercentage,
 					AllocationStartDate = allocation.AllocationStartDate,
 					AllocationEndDate = allocation.AllocationEndDate
 				}).ToList()
 		};
+	}
+
+	public async Task EvaluateAllProjectsHealthAsync(CancellationToken cancellationToken = default)
+	{
+		var projects = await _projectRepository.GetActiveProjectsWithMilestonesAsync(cancellationToken);
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(today);
+		var lastWeekEnd = WeekHelper.GetWeekEnd(lastWeekStart);
+		var maxWeeklyHours = await GetMaxWeeklyHoursAsync(cancellationToken);
+
+		foreach (var project in projects)
+		{
+			var expectedHours = HealthStatusCalculator.CalculateExpectedWeeklyHours(
+				project.ProjectAllocations,
+				lastWeekStart,
+				lastWeekEnd,
+				maxWeeklyHours);
+			var loggedHours = await _timesheetRepository.GetLoggedHoursForProjectWeekAsync(
+				project.Id,
+				lastWeekStart,
+				cancellationToken);
+			var flagCount = HealthStatusCalculator.CountHealthFlags(
+				project,
+				loggedHours,
+				expectedHours,
+				today);
+			var healthStatus = HealthStatusCalculator.FromFlagCount(flagCount);
+
+			await _projectRepository.UpdateHealthStatusAsync(project.Id, healthStatus, cancellationToken);
+		}
 	}
 
 	private async Task<decimal> GetMaxWeeklyHoursAsync(CancellationToken cancellationToken)
@@ -309,6 +385,20 @@ public class ProjectService : IProjectService
 		}
 	}
 
+	private static void ValidateProjectDates(DateOnly startDate, DateOnly endDate, bool allowPastStartDate)
+	{
+		var today = DateOnly.FromDateTime(DateTime.Today);
+		if (!allowPastStartDate && startDate < today)
+		{
+			throw new ValidationException("Project start date cannot be in the past.");
+		}
+
+		if (endDate < startDate)
+		{
+			throw new ValidationException("Project end date cannot be before start date.");
+		}
+	}
+
 	private static void ValidateMilestonesWithinProjectDates(
 		IEnumerable<ProjectMilestone> milestones,
 		DateOnly newStart,
@@ -335,7 +425,10 @@ public class ProjectService : IProjectService
 			Id = project.Id,
 			ProjectCode = project.ProjectCode,
 			ProjectName = project.ProjectName,
+			Description = project.Description,
 			ManagerName = project.ManagerUser.FullName,
+			ManagerUserId = project.ManagerUserId,
+			StartDate = project.StartDate,
 			EndDate = project.EndDate,
 			ProjectStatus = project.ProjectStatus,
 			StoryPointsDone = storyPointsDone,

@@ -6,6 +6,8 @@ public class TeamMemberDetailDto
 	public string FullName { get; set; } = string.Empty;
 	public string? Department { get; set; }
 	public string EmploymentStatus { get; set; } = string.Empty;
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 	public decimal CurrentUtilizationPercent { get; set; }
 	public IReadOnlyList<string> Skills { get; set; } = [];
 	public IReadOnlyList<TeamMemberAllocationDto> ActiveAllocations { get; set; } = [];
@@ -14,6 +16,7 @@ public class TeamMemberDetailDto
 
 public class TeamMemberAllocationDto
 {
+	public long AllocationId { get; set; }
 	public string ProjectName { get; set; } = string.Empty;
 	public decimal AllocationPercentage { get; set; }
 	public DateOnly AllocationStartDate { get; set; }

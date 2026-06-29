@@ -6,8 +6,12 @@ public interface ISkillRepository
 {
 	Task<Skill?> GetByNameAsync(string skillName, CancellationToken cancellationToken = default);
 	Task<Skill> AddAsync(Skill skill, CancellationToken cancellationToken = default);
-	Task<EmployeeSkill?> GetEmployeeSkillAsync(long employeeId, long skillId, CancellationToken cancellationToken = default);
-	Task AddEmployeeSkillAsync(EmployeeSkill employeeSkill, CancellationToken cancellationToken = default);
-	Task RemoveEmployeeSkillAsync(EmployeeSkill employeeSkill, CancellationToken cancellationToken = default);
-	Task<IReadOnlyList<EmployeeSkill>> GetEmployeeSkillsAsync(long employeeId, CancellationToken cancellationToken = default);
+	Task<ResourceProfileSkill?> GetResourceProfileSkillAsync(long resourceProfileId, long skillId, CancellationToken cancellationToken = default);
+	Task AddResourceProfileSkillAsync(ResourceProfileSkill resourceProfileSkill, CancellationToken cancellationToken = default);
+	Task RemoveResourceProfileSkillAsync(ResourceProfileSkill resourceProfileSkill, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<ResourceProfileSkill>> GetResourceProfileSkillsAsync(long resourceProfileId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyDictionary<long, string>> GetNamesByIdsAsync(
+		IReadOnlyList<long> skillIds,
+		CancellationToken cancellationToken = default);
+	Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

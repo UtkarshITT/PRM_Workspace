@@ -1,5 +1,4 @@
 using PRM.Server.Constants;
-using PRM.Server.Data;
 using PRM.Server.Exceptions;
 using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Allocations;
@@ -28,21 +27,26 @@ public interface IAllocationService
 
 public class AllocationService : IAllocationService
 {
-	private readonly PrmDbContext _context;
+	private const decimal DefaultMaxWeeklyHours = 40;
+
 	private readonly IAllocationRepository _allocationRepository;
-	private readonly IEmployeeRepository _employeeRepository;
+	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IProjectRepository _projectRepository;
+	private readonly ISystemConfigRepository _systemConfigRepository;
+	private readonly IAuditService _auditService;
 
 	public AllocationService(
-		PrmDbContext context,
 		IAllocationRepository allocationRepository,
-		IEmployeeRepository employeeRepository,
-		IProjectRepository projectRepository)
+		IResourceProfileRepository resourceProfileRepository,
+		IProjectRepository projectRepository,
+		ISystemConfigRepository systemConfigRepository,
+		IAuditService auditService)
 	{
-		_context = context;
 		_allocationRepository = allocationRepository;
-		_employeeRepository = employeeRepository;
+		_resourceProfileRepository = resourceProfileRepository;
 		_projectRepository = projectRepository;
+		_systemConfigRepository = systemConfigRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<IReadOnlyList<AllocationListItemDto>> GetAllAllocationsAsync(
@@ -57,7 +61,7 @@ public class AllocationService : IAllocationService
 		return allocations.Select(allocation => new AllocationListItemDto
 		{
 			Id = allocation.Id,
-			EmployeeName = allocation.Employee.User.FullName,
+			EmployeeName = allocation.ResourceProfile.User.FullName,
 			ProjectName = allocation.Project.ProjectName,
 			AllocationPercentage = allocation.AllocationPercentage,
 			AllocationStartDate = allocation.AllocationStartDate,
@@ -71,9 +75,10 @@ public class AllocationService : IAllocationService
 		long managerUserId,
 		CancellationToken cancellationToken = default)
 	{
-		var employee = await _employeeRepository.GetTeamMemberAsync(dto.EmployeeId, managerUserId, cancellationToken);
+		ValidateAllocationDates(dto.AllocationStartDate, dto.AllocationEndDate);
+		var resourceProfile = await _resourceProfileRepository.GetTeamMemberAsync(dto.EmployeeId, managerUserId, cancellationToken);
 
-		if (employee == null)
+		if (resourceProfile == null)
 		{
 			throw new ValidationException("Employee is not on your team.");
 		}
@@ -100,7 +105,12 @@ public class AllocationService : IAllocationService
 			throw new ValidationException("Allocation dates must fall within the project date range.");
 		}
 
-		var activeAllocations = await _allocationRepository.GetActiveByEmployeeIdAsync(dto.EmployeeId, cancellationToken);
+		var activeAllocations = await _allocationRepository.GetActiveByResourceProfileIdAsync(dto.EmployeeId, cancellationToken);
+		if (HasOverlappingAllocationForProject(activeAllocations, dto.ProjectId, dto.AllocationStartDate, dto.AllocationEndDate))
+		{
+			throw new ValidationException("Employee already has an active allocation for this project in the selected date range.");
+		}
+
 		var overlappingUtilization = UtilizationCalculator.CalculateOverlappingUtilization(
 			activeAllocations,
 			dto.AllocationStartDate,
@@ -108,49 +118,46 @@ public class AllocationService : IAllocationService
 
 		if (overlappingUtilization + dto.AllocationPercentage > 100)
 		{
-			throw new OverAllocationException(employee.User.FullName, overlappingUtilization + dto.AllocationPercentage);
+			throw new OverAllocationException(resourceProfile.User.FullName, overlappingUtilization + dto.AllocationPercentage);
 		}
 
-		await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
-		try
+		var now = DateTime.UtcNow;
+		var allocation = new ProjectAllocation
 		{
-			var now = DateTime.UtcNow;
-			var allocation = new ProjectAllocation
-			{
-				EmployeeId = dto.EmployeeId,
-				ProjectId = dto.ProjectId,
-				AllocationPercentage = dto.AllocationPercentage,
-				AllocationStartDate = dto.AllocationStartDate,
-				AllocationEndDate = dto.AllocationEndDate,
-				AllocationStatus = "ACTIVE",
-				AllocatedByManagerId = managerUserId,
-				CreatedAt = now,
-				UpdatedAt = now
-			};
+			ResourceProfileId = dto.EmployeeId,
+			ProjectId = dto.ProjectId,
+			AllocationPercentage = dto.AllocationPercentage,
+			AllocationStartDate = dto.AllocationStartDate,
+			AllocationEndDate = dto.AllocationEndDate,
+			AllocationStatus = "ACTIVE",
+			AllocatedByManagerId = managerUserId,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
 
-			_context.ProjectAllocations.Add(allocation);
-			employee.EmploymentStatus = "ALLOCATED";
-			employee.UpdatedAt = now;
+		await _allocationRepository.AddAsync(allocation, cancellationToken);
+		resourceProfile.EmploymentStatus = "ALLOCATED";
+		resourceProfile.UpdatedAt = now;
 
-			await _context.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
+		await _allocationRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			managerUserId,
+			"CREATE",
+			"PROJECT_ALLOCATIONS",
+			allocation.Id,
+			"Resource allocated to project",
+			newValues: $"{{\"resourceProfileId\":{allocation.ResourceProfileId},\"projectId\":{allocation.ProjectId},\"allocationPercentage\":{allocation.AllocationPercentage}}}",
+			cancellationToken: cancellationToken);
 
-			return new AllocationCreatedDto
-			{
-				AllocationId = allocation.Id,
-				EmployeeId = dto.EmployeeId,
-				ProjectId = dto.ProjectId,
-				AllocationPercentage = dto.AllocationPercentage,
-				AllocationStatus = allocation.AllocationStatus,
-				EmploymentStatus = employee.EmploymentStatus
-			};
-		}
-		catch
+		return new AllocationCreatedDto
 		{
-			await transaction.RollbackAsync(cancellationToken);
-			throw;
-		}
+			AllocationId = allocation.Id,
+			EmployeeId = dto.EmployeeId,
+			ProjectId = dto.ProjectId,
+			AllocationPercentage = dto.AllocationPercentage,
+			AllocationStatus = allocation.AllocationStatus,
+			EmploymentStatus = resourceProfile.EmploymentStatus
+		};
 	}
 
 	public async Task EndAllocationAsync(long allocationId, long managerUserId, CancellationToken cancellationToken = default)
@@ -175,41 +182,29 @@ public class AllocationService : IAllocationService
 		var today = DateOnly.FromDateTime(DateTime.UtcNow);
 		var now = DateTime.UtcNow;
 
-		await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+		allocation.AllocationStatus = "ENDED";
+		allocation.AllocationEndDate = today;
+		allocation.UpdatedAt = now;
 
-		try
+		var remainingActive = await _allocationRepository.GetActiveByResourceProfileIdAsync(allocation.ResourceProfileId, cancellationToken);
+		var hasOtherActive = remainingActive.Any(item => item.Id != allocationId);
+
+		if (!hasOtherActive)
 		{
-			allocation.AllocationStatus = "ENDED";
-			allocation.AllocationEndDate = today;
-			allocation.UpdatedAt = now;
-
-			var remainingActive = await _allocationRepository.GetActiveByEmployeeIdAsync(allocation.EmployeeId, cancellationToken);
-			var hasOtherActive = remainingActive.Any(item => item.Id != allocationId);
-
-			if (!hasOtherActive)
-			{
-				allocation.Employee.EmploymentStatus = "BENCH";
-				allocation.Employee.UpdatedAt = now;
-			}
-
-			_context.AuditLogs.Add(new AuditLog
-			{
-				ActorUserId = managerUserId,
-				EntityName = "PROJECT_ALLOCATIONS",
-				EntityId = allocationId,
-				ActionType = "END",
-				NewValues = $"{{\"employeeId\":{allocation.EmployeeId},\"endDate\":\"{today:yyyy-MM-dd}\"}}",
-				CreatedAt = now
-			});
-
-			await _context.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
+			allocation.ResourceProfile.EmploymentStatus = "BENCH";
+			allocation.ResourceProfile.UpdatedAt = now;
 		}
-		catch
-		{
-			await transaction.RollbackAsync(cancellationToken);
-			throw;
-		}
+
+		await _allocationRepository.SaveChangesAsync(cancellationToken);
+
+		await _auditService.LogAsync(
+			managerUserId,
+			"END",
+			"PROJECT_ALLOCATIONS",
+			allocationId,
+			"Allocation ended",
+			newValues: $"{{\"resourceProfileId\":{allocation.ResourceProfileId},\"endDate\":\"{today:yyyy-MM-dd}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<EmployeeAllocationsResponseDto> GetMyAllocationsAsync(
@@ -217,7 +212,8 @@ public class AllocationService : IAllocationService
 		DateOnly? weekStart,
 		CancellationToken cancellationToken = default)
 	{
-		var allocations = await _allocationRepository.GetByEmployeeIdWithProjectsAsync(employeeId, cancellationToken);
+		var allocations = await _allocationRepository.GetByResourceProfileIdWithProjectsAsync(employeeId, cancellationToken);
+		var maxWeeklyHours = await GetMaxWeeklyHoursAsync(cancellationToken);
 		var today = DateOnly.FromDateTime(DateTime.UtcNow);
 		var activeUtilization = UtilizationCalculator.CalculateCurrentUtilization(allocations, today);
 
@@ -246,7 +242,45 @@ public class AllocationService : IAllocationService
 				AllocationEndDate = allocation.AllocationEndDate,
 				AllocationStatus = allocation.AllocationStatus
 			}).ToList(),
-			TotalActiveUtilizationPercent = activeUtilization
+			TotalActiveUtilizationPercent = activeUtilization,
+			MaxWeeklyHours = maxWeeklyHours
 		};
+	}
+
+	private async Task<decimal> GetMaxWeeklyHoursAsync(CancellationToken cancellationToken)
+	{
+		var value = await _systemConfigRepository.GetValueByKeyAsync(SystemConfigKeys.MaxWeeklyHours, cancellationToken);
+		return decimal.TryParse(value, out var hours) && hours > 0
+			? hours
+			: DefaultMaxWeeklyHours;
+	}
+
+	private static bool HasOverlappingAllocationForProject(
+		IEnumerable<ProjectAllocation> allocations,
+		long projectId,
+		DateOnly allocationStartDate,
+		DateOnly allocationEndDate)
+	{
+		return allocations.Any(allocation =>
+			allocation.ProjectId == projectId
+			&& UtilizationCalculator.PeriodsOverlap(
+				allocation.AllocationStartDate,
+				allocation.AllocationEndDate,
+				allocationStartDate,
+				allocationEndDate));
+	}
+
+	private static void ValidateAllocationDates(DateOnly startDate, DateOnly endDate)
+	{
+		var today = DateOnly.FromDateTime(DateTime.Today);
+		if (startDate < today)
+		{
+			throw new ValidationException("Allocation start date cannot be in the past.");
+		}
+
+		if (endDate <= startDate)
+		{
+			throw new ValidationException("Allocation end date must be after start date.");
+		}
 	}
 }

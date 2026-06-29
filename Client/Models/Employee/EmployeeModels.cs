@@ -22,6 +22,7 @@ public class EmployeeAllocationsResponse
 {
 	public List<EmployeeAllocationItem> Allocations { get; set; } = [];
 	public decimal TotalActiveUtilizationPercent { get; set; }
+	public decimal MaxWeeklyHours { get; set; }
 }
 
 public class TimesheetLineItemRequest

@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PRM.Server.Extensions;
 using PRM.Server.Models.DTOs.Auth;
 using PRM.Server.Models.DTOs.Common;
 using PRM.Server.Services.Interfaces;
@@ -34,21 +34,8 @@ public class AuthController : ControllerBase
 		[FromBody] PasswordChangeDto dto,
 		CancellationToken cancellationToken)
 	{
-		var userId = GetUserId();
+		var userId = User.GetUserId();
 		var result = await _authService.ChangePasswordAsync(userId, dto, cancellationToken);
 		return Ok(ApiResponse<LoginResponseDto>.Ok(result, "Password changed successfully."));
-	}
-
-	private long GetUserId()
-	{
-		var userIdClaim = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
-			?? User.FindFirstValue("sub");
-
-		if (string.IsNullOrWhiteSpace(userIdClaim))
-		{
-			throw new InvalidOperationException("User identifier claim is missing.");
-		}
-
-		return long.Parse(userIdClaim);
 	}
 }

@@ -6,7 +6,7 @@ public static class SessionStore
 	public static string? Role { get; private set; }
 	public static string? FullName { get; private set; }
 	public static long? UserId { get; private set; }
-	public static long? EmployeeId { get; private set; }
+	public static long? ResourceProfileId { get; private set; }
 	public static bool ForcePasswordChange { get; private set; }
 
 	public static void SetSession(Models.Auth.LoginResponse response)
@@ -15,7 +15,7 @@ public static class SessionStore
 		Role = response.Role;
 		FullName = response.FullName;
 		UserId = response.UserId;
-		EmployeeId = response.EmployeeId;
+		ResourceProfileId = response.ResourceProfileId;
 		ForcePasswordChange = response.ForcePasswordChange;
 	}
 
@@ -25,7 +25,7 @@ public static class SessionStore
 		Role = null;
 		FullName = null;
 		UserId = null;
-		EmployeeId = null;
+		ResourceProfileId = null;
 		ForcePasswordChange = false;
 	}
 

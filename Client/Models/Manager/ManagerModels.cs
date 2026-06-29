@@ -12,6 +12,8 @@ public class TeamBenchMember
 	public string FullName { get; set; } = string.Empty;
 	public string? Department { get; set; }
 	public List<string> Skills { get; set; } = [];
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 }
 
 public class TeamActiveMember
@@ -20,6 +22,8 @@ public class TeamActiveMember
 	public string FullName { get; set; } = string.Empty;
 	public decimal CurrentUtilizationPercent { get; set; }
 	public decimal AvailabilityPercent { get; set; }
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 }
 
 public class TeamMemberDetail
@@ -28,6 +32,8 @@ public class TeamMemberDetail
 	public string FullName { get; set; } = string.Empty;
 	public string? Department { get; set; }
 	public string EmploymentStatus { get; set; } = string.Empty;
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 	public decimal CurrentUtilizationPercent { get; set; }
 	public List<string> Skills { get; set; } = [];
 	public List<TeamMemberAllocation> ActiveAllocations { get; set; } = [];
@@ -36,6 +42,7 @@ public class TeamMemberDetail
 
 public class TeamMemberAllocation
 {
+	public long AllocationId { get; set; }
 	public string ProjectName { get; set; } = string.Empty;
 	public decimal AllocationPercentage { get; set; }
 	public string AllocationStartDate { get; set; } = string.Empty;

@@ -48,6 +48,7 @@ artifacts/
 *.coveragexml
 coverage/
 TestResults/
+.test-output/
 
 # EF Core
 **/Migrations/*.Designer.cs.bak

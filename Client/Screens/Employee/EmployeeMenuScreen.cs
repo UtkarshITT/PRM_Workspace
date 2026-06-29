@@ -29,14 +29,15 @@ public class EmployeeMenuScreen
 		while (running)
 		{
 			Console.Clear();
-			ConsoleHelper.WriteHeader($"Employee Menu — Welcome, {SessionStore.FullName}");
+			ConsoleHelper.WriteWelcomeHeader("Employee Menu", SessionStore.FullName, includeTime: false);
 			await ShowRemindersAsync();
+			ConsoleHelper.WriteDivider();
 			Console.WriteLine("  1. Submit Timesheet");
 			Console.WriteLine("  2. View My Timesheets");
 			Console.WriteLine("  3. View My Allocations");
-			Console.WriteLine("  0. Logout");
+			Console.WriteLine("  4. Logout");
 			Console.WriteLine();
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -49,7 +50,7 @@ public class EmployeeMenuScreen
 				case "3":
 					await _viewMyAllocationsScreen.ShowAsync();
 					break;
-				case "0":
+				case "4":
 					SessionStore.Clear();
 					running = false;
 					break;

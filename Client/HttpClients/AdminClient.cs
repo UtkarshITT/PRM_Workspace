@@ -21,6 +21,12 @@ public class AdminClient
 	public Task<ApiResponse<object>> ResetPasswordAsync(long userId, ResetPasswordRequest request) =>
 		_restClient.PutAsync<object>($"/api/users/{userId}/reset-password", request, requireAuth: true);
 
+	public Task<ApiResponse<object>> UpdateUserRoleAsync(long userId, UpdateUserRoleRequest request) =>
+		_restClient.PutAsync<object>($"/api/users/{userId}/role", request, requireAuth: true);
+
+	public Task<ApiResponse<List<RolePermissionItem>>> GetRolePermissionsAsync() =>
+		_restClient.GetAsync<List<RolePermissionItem>>("/api/users/role-permissions", requireAuth: true);
+
 	public Task<ApiResponse<object>> DeactivateUserAsync(long userId) =>
 		_restClient.PutAsync<object>($"/api/users/{userId}/deactivate", new { }, requireAuth: true);
 
@@ -55,6 +61,15 @@ public class AdminClient
 
 	public Task<ApiResponse<List<EmployeeSkillItem>>> AddSkillAsync(long employeeId, AddSkillRequest request) =>
 		_restClient.PostAsync<List<EmployeeSkillItem>>($"/api/employees/{employeeId}/skills", request, requireAuth: true);
+
+	public Task<ApiResponse<List<EmployeeSkillItem>>> UpdateSkillProficiencyAsync(
+		long employeeId,
+		long skillId,
+		UpdateSkillProficiencyRequest request) =>
+		_restClient.PutAsync<List<EmployeeSkillItem>>(
+			$"/api/employees/{employeeId}/skills/{skillId}",
+			request,
+			requireAuth: true);
 
 	public Task<ApiResponse<object>> RemoveSkillAsync(long employeeId, long skillId) =>
 		_restClient.DeleteAsync<object>($"/api/employees/{employeeId}/skills/{skillId}", requireAuth: true);
@@ -101,5 +116,63 @@ public class AdminClient
 			: $"/api/allocations?{string.Join("&", query)}";
 
 		return _restClient.GetAsync<List<AllocationListItem>>(path, requireAuth: true);
+	}
+
+	public Task<ApiResponse<List<SystemConfigItem>>> GetSystemConfigAsync() =>
+		_restClient.GetAsync<List<SystemConfigItem>>("/api/system-config", requireAuth: true);
+
+	public Task<ApiResponse<List<SystemConfigItem>>> UpdateSystemConfigAsync(UpdateSystemConfigRequest request) =>
+		_restClient.PutAsync<List<SystemConfigItem>>("/api/system-config", request, requireAuth: true);
+
+	public Task<ApiResponse<List<NotificationLogItem>>> GetNotificationLogsAsync(int take = 50) =>
+		_restClient.GetAsync<List<NotificationLogItem>>($"/api/notifications/logs?take={take}", requireAuth: true);
+
+	public Task<ApiResponse<AuditLogPage>> GetAuditLogsAsync(
+		int page,
+		int pageSize,
+		long? actorUserId,
+		string? actionType,
+		string? entityName,
+		long? entityId,
+		string? from,
+		string? to)
+	{
+		var query = new List<string>
+		{
+			$"page={page}",
+			$"pageSize={pageSize}"
+		};
+
+		if (actorUserId.HasValue)
+		{
+			query.Add($"actorUserId={actorUserId.Value}");
+		}
+
+		if (!string.IsNullOrWhiteSpace(actionType))
+		{
+			query.Add($"actionType={Uri.EscapeDataString(actionType)}");
+		}
+
+		if (!string.IsNullOrWhiteSpace(entityName))
+		{
+			query.Add($"entityName={Uri.EscapeDataString(entityName)}");
+		}
+
+		if (entityId.HasValue)
+		{
+			query.Add($"entityId={entityId.Value}");
+		}
+
+		if (!string.IsNullOrWhiteSpace(from))
+		{
+			query.Add($"from={Uri.EscapeDataString(from)}");
+		}
+
+		if (!string.IsNullOrWhiteSpace(to))
+		{
+			query.Add($"to={Uri.EscapeDataString(to)}");
+		}
+
+		return _restClient.GetAsync<AuditLogPage>($"/api/audit-logs?{string.Join("&", query)}", requireAuth: true);
 	}
 }

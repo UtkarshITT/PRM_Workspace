@@ -53,7 +53,7 @@ public static class ProjectHealthEvaluator
 		if (activeAllocations.Count > 0)
 		{
 			var overAllocatedEmployees = activeAllocations
-				.GroupBy(allocation => allocation.EmployeeId)
+				.GroupBy(allocation => allocation.ResourceProfileId)
 				.Where(group => group.Sum(allocation => allocation.AllocationPercentage) > 100)
 				.ToList();
 

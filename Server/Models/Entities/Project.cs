@@ -10,6 +10,7 @@ public class Project
 	public DateOnly EndDate { get; set; }
 	public string ProjectStatus { get; set; } = "PLANNED";
 	public string HealthStatus { get; set; } = "GREEN";
+	public string? LastRiskSummary { get; set; }
 	public int TotalStoryPoints { get; set; }
 	public long ManagerUserId { get; set; }
 	public bool IsActive { get; set; } = true;

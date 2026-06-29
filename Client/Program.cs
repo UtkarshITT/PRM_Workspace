@@ -17,22 +17,27 @@ var restClient = new RestClient(serverBaseUrl);
 var authClient = new AuthClient(restClient);
 var adminClient = new AdminClient(restClient);
 var managerClient = new ManagerClient(restClient);
+var aiClient = new AiClient(restClient);
 var employeeClient = new EmployeeClient(restClient);
+var allocateResourceScreen = new AllocateResourceScreen(managerClient, aiClient);
 
 var app = new AppStarter(
-	serverBaseUrl,
 	new LoginScreen(authClient),
 	new ChangePasswordScreen(authClient),
 	new AdminMenuScreen(
 		new ManageUsersScreen(adminClient),
 		new ManageEmployeesScreen(adminClient),
 		new ManageProjectsScreen(adminClient),
-		new ViewAllocationsScreen(adminClient)),
+		new ViewAllocationsScreen(adminClient),
+		new SystemConfigScreen(adminClient),
+		new AuditLogsScreen(adminClient)),
 	new ManagerMenuScreen(
 		new ResourceDashboardScreen(managerClient),
-		new AllocateResourceScreen(managerClient),
-		new MyProjectsScreen(managerClient),
-		new TeamTimesheetsScreen(managerClient)),
+		allocateResourceScreen,
+		new MyProjectsScreen(managerClient, aiClient),
+		new TeamTimesheetsScreen(managerClient),
+		new AiAssistantScreen(aiClient, managerClient, allocateResourceScreen),
+		new FrozenTimesheetAccessScreen(managerClient)),
 	new EmployeeMenuScreen(
 		employeeClient,
 		new SubmitTimesheetScreen(employeeClient),

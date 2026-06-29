@@ -7,10 +7,12 @@ namespace PRM.Client.Screens.Manager;
 public class MyProjectsScreen
 {
 	private readonly ManagerClient _managerClient;
+	private readonly AiClient _aiClient;
 
-	public MyProjectsScreen(ManagerClient managerClient)
+	public MyProjectsScreen(ManagerClient managerClient, AiClient aiClient)
 	{
 		_managerClient = managerClient;
+		_aiClient = aiClient;
 	}
 
 	public async Task ShowAsync()
@@ -37,8 +39,8 @@ public class MyProjectsScreen
 			}
 			else
 			{
-				Console.WriteLine($"{"#",3}  {"Project",-16} {"End Date",-11} Health");
-				Console.WriteLine(new string('─', 46));
+				Console.WriteLine($"{"#",3}  {"Project ID",-10}{"Project",-20} {"End Date",-11} Health");
+				Console.WriteLine(new string('─', 62));
 				for (var index = 0; index < projects.Count; index++)
 				{
 					var project = projects[index];
@@ -46,7 +48,7 @@ public class MyProjectsScreen
 					var healthLabel = HealthStatusHelper.ToDisplayLabel(project.HealthStatus);
 					var icon = HealthStatusHelper.ToDisplayIcon(project.HealthStatus);
 					Console.WriteLine(
-						$"{index + 1,2}.  {project.ProjectName,-16} {DateFormatHelper.FormatDisplay(endDate),-11} {icon} {healthLabel}");
+						$"{index + 1,2}.  {project.Id,-10}{project.ProjectName,-20} {DateFormatHelper.FormatDisplay(endDate),-11} {icon} {healthLabel}");
 				}
 			}
 
@@ -139,12 +141,27 @@ public class MyProjectsScreen
 		}
 
 		Console.WriteLine();
-		Console.WriteLine("[A] Get AI Risk Summary (Phase 8)     [B] Back");
-		Console.Write("Select option: ");
+		Console.WriteLine("[A] Get AI Risk Summary     [B] Back");
+		Console.Write("Enter option: ");
 		var option = Console.ReadLine()?.Trim().ToUpperInvariant();
 		if (option == "A")
 		{
-			ConsoleHelper.WriteError("AI Risk Summary is coming in Phase 8.");
+			Console.WriteLine();
+			Console.WriteLine("Generating AI summary...");
+			var aiResponse = await _aiClient.GetRiskSummaryAsync(projectId);
+			if (!aiResponse.Success || aiResponse.Data == null)
+			{
+				ConsoleHelper.WriteError(aiResponse.Error ?? "Risk summary failed.");
+			}
+			else
+			{
+				var summary = aiResponse.Data;
+				Console.WriteLine();
+				Console.WriteLine(summary.Paragraph ?? summary.Message ?? "No summary available.");
+				Console.WriteLine();
+				Console.WriteLine($"Note: {summary.Disclaimer}");
+			}
+
 			ConsoleHelper.PressEnterToContinue();
 		}
 	}

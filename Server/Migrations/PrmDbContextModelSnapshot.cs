@@ -157,7 +157,7 @@ namespace PRM.Server.Migrations
                     b.ToTable("AUDIT_LOGS", (string)null);
                 });
 
-            modelBuilder.Entity("PRM.Server.Models.Entities.Employee", b =>
+            modelBuilder.Entity("PRM.Server.Models.Entities.NotificationLog", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -166,91 +166,75 @@ namespace PRM.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("body");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("Department")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("department");
+                    b.Property<string>("DeliveryChannel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("delivery_channel");
 
-                    b.Property<string>("Designation")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("designation");
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("error_message");
 
-                    b.Property<string>("EmployeeCode")
+                    b.Property<string>("NotificationType")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
-                        .HasColumnName("employee_code");
+                        .HasColumnName("notification_type");
 
-                    b.Property<string>("EmploymentStatus")
+                    b.Property<string>("RecipientEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("recipient_email");
+
+                    b.Property<long>("RecipientUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("recipient_user_id");
+
+                    b.Property<long?>("RelatedEntityId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("related_entity_id");
+
+                    b.Property<string>("RelatedEntityName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("related_entity_name");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasColumnName("employment_status");
+                        .HasColumnName("status");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit")
-                        .HasColumnName("is_active");
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("subject");
 
-                    b.Property<DateOnly?>("JoinedAt")
+                    b.Property<DateOnly?>("WeekStartDate")
                         .HasColumnType("date")
-                        .HasColumnName("joined_at");
-
-                    b.Property<long?>("ManagerId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("manager_id");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("updated_at");
-
-                    b.Property<long>("UserId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("user_id");
+                        .HasColumnName("week_start_date");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EmployeeCode")
-                        .IsUnique();
+                    b.HasIndex("RecipientUserId");
 
-                    b.HasIndex("ManagerId")
-                        .HasDatabaseName("IX_Employees_Manager");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("EMPLOYEES", (string)null);
-                });
-
-            modelBuilder.Entity("PRM.Server.Models.Entities.EmployeeSkill", b =>
-                {
-                    b.Property<long>("EmployeeId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("employee_id");
-
-                    b.Property<long>("SkillId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("skill_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ProficiencyLevel")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("proficiency_level");
-
-                    b.HasKey("EmployeeId", "SkillId");
-
-                    b.HasIndex("SkillId");
-
-                    b.ToTable("EMPLOYEE_SKILLS", (string)null);
+                    b.ToTable("NOTIFICATION_LOGS", (string)null);
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.Project", b =>
@@ -283,6 +267,10 @@ namespace PRM.Server.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit")
                         .HasColumnName("is_active");
+
+                    b.Property<string>("LastRiskSummary")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("last_risk_summary");
 
                     b.Property<long>("ManagerUserId")
                         .HasColumnType("bigint")
@@ -365,13 +353,13 @@ namespace PRM.Server.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
-                    b.Property<long>("EmployeeId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("employee_id");
-
                     b.Property<long>("ProjectId")
                         .HasColumnType("bigint")
                         .HasColumnName("project_id");
+
+                    b.Property<long>("ResourceProfileId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("resource_profile_id");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2")
@@ -384,8 +372,8 @@ namespace PRM.Server.Migrations
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("IX_Allocations_Project");
 
-                    b.HasIndex("EmployeeId", "AllocationStatus", "AllocationStartDate", "AllocationEndDate")
-                        .HasDatabaseName("IX_Allocations_Employee");
+                    b.HasIndex("ResourceProfileId", "AllocationStatus", "AllocationStartDate", "AllocationEndDate")
+                        .HasDatabaseName("IX_Allocations_ResourceProfile");
 
                     b.ToTable("PROJECT_ALLOCATIONS", (string)null);
                 });
@@ -449,6 +437,110 @@ namespace PRM.Server.Migrations
                         .HasDatabaseName("IX_Milestones_Project");
 
                     b.ToTable("PROJECT_MILESTONES", (string)null);
+                });
+
+            modelBuilder.Entity("PRM.Server.Models.Entities.ResourceProfile", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("department");
+
+                    b.Property<string>("Designation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("designation");
+
+                    b.Property<string>("EmploymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("employment_status");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsTimesheetFrozen")
+                        .HasColumnType("bit")
+                        .HasColumnName("is_timesheet_frozen");
+
+                    b.Property<DateOnly?>("JoinedAt")
+                        .HasColumnType("date")
+                        .HasColumnName("joined_at");
+
+                    b.Property<long?>("ManagerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("manager_id");
+
+                    b.Property<string>("ResourceProfileCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("resource_profile_code");
+
+                    b.Property<DateTime?>("TimesheetFrozenAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("timesheet_frozen_at");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ManagerId")
+                        .HasDatabaseName("IX_ResourceProfiles_Manager");
+
+                    b.HasIndex("ResourceProfileCode")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("RESOURCE_PROFILES", (string)null);
+                });
+
+            modelBuilder.Entity("PRM.Server.Models.Entities.ResourceProfileSkill", b =>
+                {
+                    b.Property<long>("ResourceProfileId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("resource_profile_id");
+
+                    b.Property<long>("SkillId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("skill_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ProficiencyLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("proficiency_level");
+
+                    b.HasKey("ResourceProfileId", "SkillId");
+
+                    b.HasIndex("SkillId");
+
+                    b.ToTable("RESOURCE_PROFILE_SKILLS", (string)null);
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.SchedulerJobLog", b =>
@@ -581,13 +673,13 @@ namespace PRM.Server.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
-                    b.Property<long>("EmployeeId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("employee_id");
-
                     b.Property<string>("Remarks")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("remarks");
+
+                    b.Property<long>("ResourceProfileId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("resource_profile_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -614,13 +706,40 @@ namespace PRM.Server.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EmployeeId")
-                        .HasDatabaseName("IX_Timesheets_Employee_Week");
+                    b.HasIndex("ResourceProfileId")
+                        .HasDatabaseName("IX_Timesheets_ResourceProfile_Week");
 
-                    b.HasIndex("EmployeeId", "WeekStartDate")
+                    b.HasIndex("ResourceProfileId", "WeekStartDate")
                         .IsUnique();
 
                     b.ToTable("TIMESHEETS", (string)null);
+                });
+
+            modelBuilder.Entity("PRM.Server.Models.Entities.TimesheetComplianceTracking", b =>
+                {
+                    b.Property<long>("ResourceProfileId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("resource_profile_id");
+
+                    b.Property<DateOnly>("WeekStartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("week_start_date");
+
+                    b.Property<bool>("IsFrozenForWeek")
+                        .HasColumnType("bit")
+                        .HasColumnName("is_frozen_for_week");
+
+                    b.Property<DateTime?>("LastReminderAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("last_reminder_at");
+
+                    b.Property<short>("ReminderCount")
+                        .HasColumnType("smallint")
+                        .HasColumnName("reminder_count");
+
+                    b.HasKey("ResourceProfileId", "WeekStartDate");
+
+                    b.ToTable("TIMESHEET_COMPLIANCE_TRACKING", (string)null);
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.TimesheetLineItem", b =>
@@ -785,41 +904,15 @@ namespace PRM.Server.Migrations
                     b.Navigation("ActorUser");
                 });
 
-            modelBuilder.Entity("PRM.Server.Models.Entities.Employee", b =>
+            modelBuilder.Entity("PRM.Server.Models.Entities.NotificationLog", b =>
                 {
-                    b.HasOne("PRM.Server.Models.Entities.User", "Manager")
+                    b.HasOne("PRM.Server.Models.Entities.User", "RecipientUser")
                         .WithMany()
-                        .HasForeignKey("ManagerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("PRM.Server.Models.Entities.User", "User")
-                        .WithOne("Employee")
-                        .HasForeignKey("PRM.Server.Models.Entities.Employee", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Manager");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("PRM.Server.Models.Entities.EmployeeSkill", b =>
-                {
-                    b.HasOne("PRM.Server.Models.Entities.Employee", "Employee")
-                        .WithMany("EmployeeSkills")
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PRM.Server.Models.Entities.Skill", "Skill")
-                        .WithMany("EmployeeSkills")
-                        .HasForeignKey("SkillId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("Skill");
+                    b.Navigation("RecipientUser");
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.Project", b =>
@@ -841,23 +934,23 @@ namespace PRM.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PRM.Server.Models.Entities.Employee", "Employee")
-                        .WithMany("ProjectAllocations")
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("PRM.Server.Models.Entities.Project", "Project")
                         .WithMany("ProjectAllocations")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PRM.Server.Models.Entities.ResourceProfile", "ResourceProfile")
+                        .WithMany("ProjectAllocations")
+                        .HasForeignKey("ResourceProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("AllocatedByManager");
 
-                    b.Navigation("Employee");
-
                     b.Navigation("Project");
+
+                    b.Navigation("ResourceProfile");
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.ProjectMilestone", b =>
@@ -871,6 +964,43 @@ namespace PRM.Server.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("PRM.Server.Models.Entities.ResourceProfile", b =>
+                {
+                    b.HasOne("PRM.Server.Models.Entities.User", "Manager")
+                        .WithMany()
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PRM.Server.Models.Entities.User", "User")
+                        .WithOne("ResourceProfile")
+                        .HasForeignKey("PRM.Server.Models.Entities.ResourceProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Manager");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PRM.Server.Models.Entities.ResourceProfileSkill", b =>
+                {
+                    b.HasOne("PRM.Server.Models.Entities.ResourceProfile", "ResourceProfile")
+                        .WithMany("ResourceProfileSkills")
+                        .HasForeignKey("ResourceProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PRM.Server.Models.Entities.Skill", "Skill")
+                        .WithMany("ResourceProfileSkills")
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ResourceProfile");
+
+                    b.Navigation("Skill");
+                });
+
             modelBuilder.Entity("PRM.Server.Models.Entities.SystemConfiguration", b =>
                 {
                     b.HasOne("PRM.Server.Models.Entities.User", "UpdatedByUser")
@@ -882,13 +1012,24 @@ namespace PRM.Server.Migrations
 
             modelBuilder.Entity("PRM.Server.Models.Entities.Timesheet", b =>
                 {
-                    b.HasOne("PRM.Server.Models.Entities.Employee", "Employee")
+                    b.HasOne("PRM.Server.Models.Entities.ResourceProfile", "ResourceProfile")
                         .WithMany("Timesheets")
-                        .HasForeignKey("EmployeeId")
+                        .HasForeignKey("ResourceProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Employee");
+                    b.Navigation("ResourceProfile");
+                });
+
+            modelBuilder.Entity("PRM.Server.Models.Entities.TimesheetComplianceTracking", b =>
+                {
+                    b.HasOne("PRM.Server.Models.Entities.ResourceProfile", "ResourceProfile")
+                        .WithMany("ComplianceTracking")
+                        .HasForeignKey("ResourceProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ResourceProfile");
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.TimesheetLineItem", b =>
@@ -934,15 +1075,6 @@ namespace PRM.Server.Migrations
                     b.Navigation("LineItemTags");
                 });
 
-            modelBuilder.Entity("PRM.Server.Models.Entities.Employee", b =>
-                {
-                    b.Navigation("EmployeeSkills");
-
-                    b.Navigation("ProjectAllocations");
-
-                    b.Navigation("Timesheets");
-                });
-
             modelBuilder.Entity("PRM.Server.Models.Entities.Project", b =>
                 {
                     b.Navigation("Milestones");
@@ -950,9 +1082,20 @@ namespace PRM.Server.Migrations
                     b.Navigation("ProjectAllocations");
                 });
 
+            modelBuilder.Entity("PRM.Server.Models.Entities.ResourceProfile", b =>
+                {
+                    b.Navigation("ComplianceTracking");
+
+                    b.Navigation("ProjectAllocations");
+
+                    b.Navigation("ResourceProfileSkills");
+
+                    b.Navigation("Timesheets");
+                });
+
             modelBuilder.Entity("PRM.Server.Models.Entities.Skill", b =>
                 {
-                    b.Navigation("EmployeeSkills");
+                    b.Navigation("ResourceProfileSkills");
                 });
 
             modelBuilder.Entity("PRM.Server.Models.Entities.Timesheet", b =>
@@ -967,7 +1110,7 @@ namespace PRM.Server.Migrations
 
             modelBuilder.Entity("PRM.Server.Models.Entities.User", b =>
                 {
-                    b.Navigation("Employee");
+                    b.Navigation("ResourceProfile");
                 });
 #pragma warning restore 612, 618
         }

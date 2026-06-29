@@ -50,7 +50,7 @@ public class ViewTimesheetsScreen
 
 			Console.WriteLine();
 			Console.WriteLine("[V] View week details     [B] Back");
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim().ToUpperInvariant())
 			{

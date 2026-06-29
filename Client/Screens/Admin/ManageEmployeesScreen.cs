@@ -26,9 +26,9 @@ public class ManageEmployeesScreen
 			Console.WriteLine("  3. Deactivate Employee");
 			Console.WriteLine("  4. Manage Employee Skills");
 			Console.WriteLine("  5. Assign Manager");
-			Console.WriteLine("  0. Back");
+			Console.WriteLine("  6. Back");
 			Console.WriteLine();
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -47,7 +47,7 @@ public class ManageEmployeesScreen
 				case "5":
 					await AssignManagerAsync();
 					break;
-				case "0":
+				case "6":
 					running = false;
 					break;
 				default:
@@ -106,15 +106,26 @@ public class ManageEmployeesScreen
 			return;
 		}
 
-		var fullName = ConsoleHelper.ReadInput("Full Name   : ");
-		var department = ConsoleHelper.ReadInput("Department  : ");
-		var designation = ConsoleHelper.ReadInput("Designation : ");
+		var employee = await GetEmployeeForUpdateAsync(employeeId);
+		if (employee == null)
+		{
+			return;
+		}
+
+		ConsoleHelper.WriteKeepCurrentHint();
+		var fullNameInput = ConsoleHelper.ReadOptionalUpdateInput("Full Name  ", employee.FullName);
+		var departmentInput = ConsoleHelper.ReadOptionalUpdateInput("Department ", employee.Department);
+		var designationInput = ConsoleHelper.ReadOptionalUpdateInput("Designation", employee.Designation);
+
+		var fullName = string.IsNullOrWhiteSpace(fullNameInput) ? employee.FullName : fullNameInput;
+		var department = ResolveOptionalUpdateValue(departmentInput, employee.Department);
+		var designation = ResolveOptionalUpdateValue(designationInput, employee.Designation);
 
 		var response = await _adminClient.UpdateEmployeeAsync(employeeId, new UpdateEmployeeRequest
 		{
 			FullName = fullName,
-			Department = string.IsNullOrWhiteSpace(department) ? null : department,
-			Designation = string.IsNullOrWhiteSpace(designation) ? null : designation
+			Department = department,
+			Designation = designation
 		});
 
 		if (response.Success)
@@ -124,9 +135,30 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
+	}
+
+	private async Task<EmployeeListItem?> GetEmployeeForUpdateAsync(long employeeId)
+	{
+		var response = await _adminClient.GetEmployeesAsync();
+		if (!response.Success || response.Data == null)
+		{
+			WriteApiError(response);
+			return null;
+		}
+
+		var employee = response.Data.FirstOrDefault(item => item.Id == employeeId);
+		if (employee != null)
+		{
+			return employee;
+		}
+
+		ConsoleHelper.WriteError("Employee not found.");
+		ConsoleHelper.PressEnterToContinue();
+		return null;
 	}
 
 	private async Task DeactivateEmployeeAsync()
@@ -155,6 +187,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -177,10 +210,17 @@ public class ManageEmployeesScreen
 		{
 			Console.Clear();
 			ConsoleHelper.WriteHeader($"Skills — Employee {employeeId}");
+
+			if (!await DisplayEmployeeSkillsAsync(employeeId))
+			{
+				return;
+			}
+
 			Console.WriteLine("  1. Add Skill");
-			Console.WriteLine("  2. Remove Skill");
-			Console.WriteLine("  0. Back");
-			Console.Write("Select option: ");
+			Console.WriteLine("  2. Update Proficiency Level");
+			Console.WriteLine("  3. Remove Skill");
+			Console.WriteLine("  4. Back");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -188,13 +228,55 @@ public class ManageEmployeesScreen
 					await AddSkillAsync(employeeId);
 					break;
 				case "2":
+					await UpdateSkillProficiencyAsync(employeeId);
+					break;
+				case "3":
 					await RemoveSkillAsync(employeeId);
 					break;
-				case "0":
+				case "4":
 					running = false;
 					break;
 			}
 		}
+	}
+
+	private async Task<bool> DisplayEmployeeSkillsAsync(long employeeId)
+	{
+		var response = await _adminClient.GetEmployeesAsync();
+		if (!response.Success)
+		{
+			WriteApiError(response);
+			return false;
+		}
+
+		var employee = response.Data?.FirstOrDefault(item => item.Id == employeeId);
+		if (employee == null)
+		{
+			ConsoleHelper.WriteError($"Employee with ID {employeeId} was not found.");
+			ConsoleHelper.PressEnterToContinue();
+			return false;
+		}
+
+		Console.WriteLine($"{employee.FullName} | {employee.Department ?? "-"} | {employee.EmploymentStatus}");
+		Console.WriteLine();
+
+		if (employee.SkillDetails.Count == 0)
+		{
+			Console.WriteLine("No skills assigned yet.");
+			Console.WriteLine();
+			return true;
+		}
+
+		Console.WriteLine($"{"Skill ID",-10}{"Skill",-24}{"Category",-14}{"Proficiency"}");
+		Console.WriteLine(new string('-', 62));
+
+		foreach (var skill in employee.SkillDetails.OrderBy(item => item.SkillId))
+		{
+			Console.WriteLine($"{skill.SkillId,-10}{skill.SkillName,-24}{skill.Category,-14}{skill.ProficiencyLevel}");
+		}
+
+		Console.WriteLine();
+		return true;
 	}
 
 	private async Task AddSkillAsync(long employeeId)
@@ -222,6 +304,45 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
+		}
+
+		ConsoleHelper.PressEnterToContinue();
+	}
+
+	private async Task UpdateSkillProficiencyAsync(long employeeId)
+	{
+		if (!long.TryParse(ConsoleHelper.ReadInput("Skill ID to update: "), out var skillId))
+		{
+			ConsoleHelper.WriteError("Invalid skill ID.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		var proficiency = PromptProficiency();
+		if (proficiency == null)
+		{
+			ConsoleHelper.WriteError("Invalid proficiency level.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		var response = await _adminClient.UpdateSkillProficiencyAsync(
+			employeeId,
+			skillId,
+			new UpdateSkillProficiencyRequest
+			{
+				ProficiencyLevel = proficiency
+			});
+
+		if (response.Success)
+		{
+			ConsoleHelper.WriteSuccess("Skill proficiency updated.");
+		}
+		else
+		{
+			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -244,6 +365,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -280,6 +402,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -313,6 +436,16 @@ public class ManageEmployeesScreen
 			"3" => "Advanced",
 			_ => null
 		};
+	}
+
+	private static string? ResolveOptionalUpdateValue(string input, string? currentValue)
+	{
+		if (string.IsNullOrWhiteSpace(input))
+		{
+			return currentValue;
+		}
+
+		return input == "-" ? null : input;
 	}
 
 	private static void WriteApiError<T>(Models.ApiResponse<T> response)

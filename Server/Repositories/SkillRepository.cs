@@ -27,32 +27,51 @@ public class SkillRepository : ISkillRepository
 		return skill;
 	}
 
-	public Task<EmployeeSkill?> GetEmployeeSkillAsync(long employeeId, long skillId, CancellationToken cancellationToken = default)
+	public Task<ResourceProfileSkill?> GetResourceProfileSkillAsync(long resourceProfileId, long skillId, CancellationToken cancellationToken = default)
 	{
-		return _context.EmployeeSkills
+		return _context.ResourceProfileSkills
 			.FirstOrDefaultAsync(
-				employeeSkill => employeeSkill.EmployeeId == employeeId && employeeSkill.SkillId == skillId,
+				resourceProfileSkill => resourceProfileSkill.ResourceProfileId == resourceProfileId && resourceProfileSkill.SkillId == skillId,
 				cancellationToken);
 	}
 
-	public async Task AddEmployeeSkillAsync(EmployeeSkill employeeSkill, CancellationToken cancellationToken = default)
+	public async Task AddResourceProfileSkillAsync(ResourceProfileSkill resourceProfileSkill, CancellationToken cancellationToken = default)
 	{
-		_context.EmployeeSkills.Add(employeeSkill);
+		_context.ResourceProfileSkills.Add(resourceProfileSkill);
 		await _context.SaveChangesAsync(cancellationToken);
 	}
 
-	public async Task RemoveEmployeeSkillAsync(EmployeeSkill employeeSkill, CancellationToken cancellationToken = default)
+	public async Task RemoveResourceProfileSkillAsync(ResourceProfileSkill resourceProfileSkill, CancellationToken cancellationToken = default)
 	{
-		_context.EmployeeSkills.Remove(employeeSkill);
+		_context.ResourceProfileSkills.Remove(resourceProfileSkill);
 		await _context.SaveChangesAsync(cancellationToken);
 	}
 
-	public async Task<IReadOnlyList<EmployeeSkill>> GetEmployeeSkillsAsync(long employeeId, CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<ResourceProfileSkill>> GetResourceProfileSkillsAsync(long resourceProfileId, CancellationToken cancellationToken = default)
 	{
-		return await _context.EmployeeSkills
-			.Include(employeeSkill => employeeSkill.Skill)
-			.Where(employeeSkill => employeeSkill.EmployeeId == employeeId)
-			.OrderBy(employeeSkill => employeeSkill.Skill.SkillName)
+		return await _context.ResourceProfileSkills
+			.Include(resourceProfileSkill => resourceProfileSkill.Skill)
+			.Where(resourceProfileSkill => resourceProfileSkill.ResourceProfileId == resourceProfileId)
+			.OrderBy(resourceProfileSkill => resourceProfileSkill.Skill.SkillName)
 			.ToListAsync(cancellationToken);
+	}
+
+	public async Task<IReadOnlyDictionary<long, string>> GetNamesByIdsAsync(
+		IReadOnlyList<long> skillIds,
+		CancellationToken cancellationToken = default)
+	{
+		if (skillIds.Count == 0)
+		{
+			return new Dictionary<long, string>();
+		}
+
+		return await _context.Skills
+			.Where(skill => skillIds.Contains(skill.Id))
+			.ToDictionaryAsync(skill => skill.Id, skill => skill.SkillName, cancellationToken);
+	}
+
+	public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+	{
+		return _context.SaveChangesAsync(cancellationToken);
 	}
 }

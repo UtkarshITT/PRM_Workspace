@@ -1,7 +1,8 @@
-using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PRM.Server.Constants;
+using PRM.Server.Extensions;
 using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Common;
 using PRM.Server.Models.DTOs.Projects;
@@ -33,37 +34,37 @@ public class ProjectController : ControllerBase
 		_updateMilestoneStatusValidator = updateMilestoneStatusValidator;
 	}
 
-	[Authorize(Roles = "MANAGER")]
+	[Authorize(Policy = AuthorizationPolicies.ManagerOnly)]
 	[HttpGet("my")]
 	public async Task<ActionResult<ApiResponse<IReadOnlyList<ManagerProjectListItemDto>>>> GetMyProjects(
 		CancellationToken cancellationToken)
 	{
-		var projects = await _projectService.GetMyProjectsAsync(GetUserId(), cancellationToken);
+		var projects = await _projectService.GetMyProjectsAsync(User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<IReadOnlyList<ManagerProjectListItemDto>>.Ok(projects, "Projects retrieved."));
 	}
 
-	[Authorize(Roles = "MANAGER")]
+	[Authorize(Policy = AuthorizationPolicies.ManagerOnly)]
 	[HttpGet("{id:long}")]
 	public async Task<ActionResult<ApiResponse<ManagerProjectDetailDto>>> GetProjectDetail(
 		long id,
 		CancellationToken cancellationToken)
 	{
-		var detail = await _projectService.GetProjectDetailAsync(id, GetUserId(), cancellationToken);
+		var detail = await _projectService.GetProjectDetailAsync(id, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<ManagerProjectDetailDto>.Ok(detail, "Project detail retrieved."));
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpPost]
 	public async Task<ActionResult<ApiResponse<ProjectCreatedDto>>> CreateProject(
 		[FromBody] CreateProjectDto dto,
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_createProjectValidator, dto, cancellationToken);
-		var result = await _projectService.CreateProjectAsync(dto, cancellationToken);
+		var result = await _projectService.CreateProjectAsync(dto, User.GetUserId(), cancellationToken);
 		return StatusCode(StatusCodes.Status201Created, ApiResponse<ProjectCreatedDto>.Ok(result, "Project created."));
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpGet]
 	public async Task<ActionResult<ApiResponse<IReadOnlyList<ProjectListItemDto>>>> GetAllProjects(
 		CancellationToken cancellationToken)
@@ -72,7 +73,7 @@ public class ProjectController : ControllerBase
 		return Ok(ApiResponse<IReadOnlyList<ProjectListItemDto>>.Ok(projects, "Projects retrieved."));
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpPut("{id:long}")]
 	public async Task<ActionResult<ApiResponse<object>>> UpdateProject(
 		long id,
@@ -80,11 +81,11 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_updateProjectValidator, dto, cancellationToken);
-		await _projectService.UpdateProjectAsync(id, dto, cancellationToken);
+		await _projectService.UpdateProjectAsync(id, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Project updated."));
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpGet("{id:long}/milestones")]
 	public async Task<ActionResult<ApiResponse<IReadOnlyList<MilestoneListItemDto>>>> GetMilestones(
 		long id,
@@ -94,7 +95,7 @@ public class ProjectController : ControllerBase
 		return Ok(ApiResponse<IReadOnlyList<MilestoneListItemDto>>.Ok(milestones, "Milestones retrieved."));
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpPost("{id:long}/milestones")]
 	public async Task<ActionResult<ApiResponse<MilestoneListItemDto>>> AddMilestone(
 		long id,
@@ -102,11 +103,11 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_createMilestoneValidator, dto, cancellationToken);
-		var milestone = await _projectService.AddMilestoneAsync(id, dto, cancellationToken);
+		var milestone = await _projectService.AddMilestoneAsync(id, dto, User.GetUserId(), cancellationToken);
 		return StatusCode(StatusCodes.Status201Created, ApiResponse<MilestoneListItemDto>.Ok(milestone, "Milestone added."));
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpPut("{id:long}/milestones/{milestoneId:long}")]
 	public async Task<ActionResult<ApiResponse<object>>> UpdateMilestoneStatus(
 		long id,
@@ -115,13 +116,7 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_updateMilestoneStatusValidator, dto, cancellationToken);
-		await _projectService.UpdateMilestoneStatusAsync(id, milestoneId, dto, cancellationToken);
+		await _projectService.UpdateMilestoneStatusAsync(id, milestoneId, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Milestone updated."));
-	}
-
-	private long GetUserId()
-	{
-		var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-		return long.Parse(userIdClaim!);
 	}
 }

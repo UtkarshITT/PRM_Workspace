@@ -8,17 +8,23 @@ public class ManagerMenuScreen
 	private readonly AllocateResourceScreen _allocateResourceScreen;
 	private readonly MyProjectsScreen _myProjectsScreen;
 	private readonly TeamTimesheetsScreen _teamTimesheetsScreen;
+	private readonly AiAssistantScreen _aiAssistantScreen;
+	private readonly FrozenTimesheetAccessScreen _frozenTimesheetAccessScreen;
 
 	public ManagerMenuScreen(
 		ResourceDashboardScreen resourceDashboardScreen,
 		AllocateResourceScreen allocateResourceScreen,
 		MyProjectsScreen myProjectsScreen,
-		TeamTimesheetsScreen teamTimesheetsScreen)
+		TeamTimesheetsScreen teamTimesheetsScreen,
+		AiAssistantScreen aiAssistantScreen,
+		FrozenTimesheetAccessScreen frozenTimesheetAccessScreen)
 	{
 		_resourceDashboardScreen = resourceDashboardScreen;
 		_allocateResourceScreen = allocateResourceScreen;
 		_myProjectsScreen = myProjectsScreen;
 		_teamTimesheetsScreen = teamTimesheetsScreen;
+		_aiAssistantScreen = aiAssistantScreen;
+		_frozenTimesheetAccessScreen = frozenTimesheetAccessScreen;
 	}
 
 	public async Task ShowAsync()
@@ -28,15 +34,16 @@ public class ManagerMenuScreen
 		while (running)
 		{
 			Console.Clear();
-			ConsoleHelper.WriteHeader($"Manager Menu — Welcome, {SessionStore.FullName}");
+			ConsoleHelper.WriteWelcomeHeader("Manager Menu", SessionStore.FullName);
 			Console.WriteLine("  1. Resource Dashboard");
 			Console.WriteLine("  2. Allocate Resource");
 			Console.WriteLine("  3. My Projects");
-			Console.WriteLine("  4. Team Timesheets");
-			Console.WriteLine("  5. AI Assistant (Phase 8)");
-			Console.WriteLine("  0. Logout");
+			Console.WriteLine("  4. Timesheets");
+			Console.WriteLine("  5. AI Assistant");
+			Console.WriteLine("  6. Frozen Timesheet Access");
+			Console.WriteLine("  7. Logout");
 			Console.WriteLine();
-			Console.Write("Select option: ");
+			Console.Write("Enter option: ");
 
 			switch (Console.ReadLine()?.Trim())
 			{
@@ -52,12 +59,18 @@ public class ManagerMenuScreen
 				case "4":
 					await _teamTimesheetsScreen.ShowAsync();
 					break;
-				case "0":
+				case "5":
+					await _aiAssistantScreen.ShowAsync();
+					break;
+				case "6":
+					await _frozenTimesheetAccessScreen.ShowAsync();
+					break;
+				case "7":
 					SessionStore.Clear();
 					running = false;
 					break;
 				default:
-					ConsoleHelper.WriteError("Feature coming in a later phase.");
+					ConsoleHelper.WriteError("Invalid option.");
 					ConsoleHelper.PressEnterToContinue();
 					break;
 			}

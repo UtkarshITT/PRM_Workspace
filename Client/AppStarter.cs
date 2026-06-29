@@ -1,3 +1,4 @@
+using PRM.Client.Constants;
 using PRM.Client.Helpers;
 using PRM.Client.HttpClients;
 using PRM.Client.Screens;
@@ -14,17 +15,14 @@ public class AppStarter
 	private readonly AdminMenuScreen _adminMenuScreen;
 	private readonly ManagerMenuScreen _managerMenuScreen;
 	private readonly EmployeeMenuScreen _employeeMenuScreen;
-	private readonly string _serverBaseUrl;
 
 	public AppStarter(
-		string serverBaseUrl,
 		LoginScreen loginScreen,
 		ChangePasswordScreen changePasswordScreen,
 		AdminMenuScreen adminMenuScreen,
 		ManagerMenuScreen managerMenuScreen,
 		EmployeeMenuScreen employeeMenuScreen)
 	{
-		_serverBaseUrl = serverBaseUrl;
 		_loginScreen = loginScreen;
 		_changePasswordScreen = changePasswordScreen;
 		_adminMenuScreen = adminMenuScreen;
@@ -34,15 +32,40 @@ public class AppStarter
 
 	public async Task RunAsync()
 	{
-		Console.Clear();
-		ConsoleHelper.WriteHeader("PRM Tool — Project & Resource Management");
-		Console.WriteLine($"API: {GetServerUrlHint()}");
-		Console.WriteLine("Start the server in another terminal if it is not running yet.");
-		Console.WriteLine();
+		var running = true;
 
+		while (running)
+		{
+			Console.Clear();
+			ConsoleHelper.WriteAppHeader();
+			Console.WriteLine("1. Login");
+			Console.WriteLine("2. Exit");
+			Console.WriteLine();
+			Console.Write("Enter option: ");
+
+			switch (Console.ReadLine()?.Trim())
+			{
+				case "1":
+					await LoginAndRouteAsync();
+					break;
+				case "2":
+					running = false;
+					break;
+				default:
+					ConsoleHelper.WriteError("Invalid option.");
+					ConsoleHelper.PressEnterToContinue();
+					break;
+			}
+		}
+	}
+
+	private async Task LoginAndRouteAsync()
+	{
+		Console.Clear();
 		var loggedIn = await _loginScreen.ShowAsync();
 		if (!loggedIn)
 		{
+			ConsoleHelper.PressEnterToContinue();
 			return;
 		}
 
@@ -79,13 +102,13 @@ public class AppStarter
 	{
 		switch (SessionStore.Role)
 		{
-			case "ADMIN":
+			case Roles.Admin:
 				_adminMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
-			case "MANAGER":
+			case Roles.Manager:
 				_managerMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
-			case "EMPLOYEE":
+			case Roles.Employee:
 				_employeeMenuScreen.ShowAsync().GetAwaiter().GetResult();
 				break;
 			default:
@@ -94,6 +117,4 @@ public class AppStarter
 				break;
 		}
 	}
-
-	private string GetServerUrlHint() => _serverBaseUrl;
 }

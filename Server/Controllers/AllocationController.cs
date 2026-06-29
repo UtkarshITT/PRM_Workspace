@@ -1,7 +1,8 @@
-using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PRM.Server.Constants;
+using PRM.Server.Extensions;
 using PRM.Server.Helpers;
 using PRM.Server.Models.DTOs.Allocations;
 using PRM.Server.Models.DTOs.Common;
@@ -24,7 +25,7 @@ public class AllocationController : ControllerBase
 		_createAllocationValidator = createAllocationValidator;
 	}
 
-	[Authorize(Roles = "ADMIN")]
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 	[HttpGet]
 	public async Task<ActionResult<ApiResponse<IReadOnlyList<AllocationListItemDto>>>> GetAllAllocations(
 		[FromQuery] long? employeeId,
@@ -36,44 +37,32 @@ public class AllocationController : ControllerBase
 		return Ok(ApiResponse<IReadOnlyList<AllocationListItemDto>>.Ok(allocations, "Allocations retrieved."));
 	}
 
-	[Authorize(Roles = "MANAGER")]
+	[Authorize(Policy = AuthorizationPolicies.ManagerOnly)]
 	[HttpPost]
 	public async Task<ActionResult<ApiResponse<AllocationCreatedDto>>> CreateAllocation(
 		[FromBody] CreateAllocationDto dto,
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_createAllocationValidator, dto, cancellationToken);
-		var result = await _allocationService.CreateAllocationAsync(dto, GetUserId(), cancellationToken);
+		var result = await _allocationService.CreateAllocationAsync(dto, User.GetUserId(), cancellationToken);
 		return StatusCode(StatusCodes.Status201Created, ApiResponse<AllocationCreatedDto>.Ok(result, "Allocation created."));
 	}
 
-	[Authorize(Roles = "EMPLOYEE")]
+	[Authorize(Policy = AuthorizationPolicies.EmployeeOnly)]
 	[HttpGet("my")]
 	public async Task<ActionResult<ApiResponse<EmployeeAllocationsResponseDto>>> GetMyAllocations(
 		[FromQuery] DateOnly? week,
 		CancellationToken cancellationToken)
 	{
-		var result = await _allocationService.GetMyAllocationsAsync(GetEmployeeId(), week, cancellationToken);
+		var result = await _allocationService.GetMyAllocationsAsync(User.GetResourceProfileId(), week, cancellationToken);
 		return Ok(ApiResponse<EmployeeAllocationsResponseDto>.Ok(result, "Allocations retrieved."));
 	}
 
-	[Authorize(Roles = "MANAGER")]
+	[Authorize(Policy = AuthorizationPolicies.ManagerOnly)]
 	[HttpPut("{id:long}/end")]
 	public async Task<ActionResult<ApiResponse<object>>> EndAllocation(long id, CancellationToken cancellationToken)
 	{
-		await _allocationService.EndAllocationAsync(id, GetUserId(), cancellationToken);
+		await _allocationService.EndAllocationAsync(id, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Allocation ended."));
-	}
-
-	private long GetUserId()
-	{
-		var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-		return long.Parse(userIdClaim!);
-	}
-
-	private long GetEmployeeId()
-	{
-		var employeeIdClaim = User.FindFirstValue("employee_id");
-		return long.Parse(employeeIdClaim!);
 	}
 }
