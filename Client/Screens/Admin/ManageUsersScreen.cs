@@ -161,6 +161,7 @@ public class ManageUsersScreen
 			else
 			{
 				WriteApiError(reactivate);
+				return;
 			}
 		}
 
@@ -197,6 +198,7 @@ public class ManageUsersScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -317,6 +319,7 @@ public class ManageUsersScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();

@@ -135,6 +135,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -186,6 +187,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -257,6 +259,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -294,6 +297,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -316,6 +320,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -352,6 +357,7 @@ public class ManageEmployeesScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();

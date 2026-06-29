@@ -117,6 +117,7 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -233,6 +234,7 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -353,6 +355,7 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
@@ -394,6 +397,7 @@ public class ManageProjectsScreen
 		else
 		{
 			WriteApiError(response);
+			return;
 		}
 
 		ConsoleHelper.PressEnterToContinue();
