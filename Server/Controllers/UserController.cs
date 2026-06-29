@@ -67,7 +67,7 @@ public class UserController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_resetPasswordValidator, dto, cancellationToken);
-		await _userService.ResetPasswordAsync(id, dto, cancellationToken);
+		await _userService.ResetPasswordAsync(id, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Password reset. User must change it on next login."));
 	}
 

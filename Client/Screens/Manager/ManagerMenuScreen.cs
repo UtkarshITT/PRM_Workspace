@@ -9,19 +9,22 @@ public class ManagerMenuScreen
 	private readonly MyProjectsScreen _myProjectsScreen;
 	private readonly TeamTimesheetsScreen _teamTimesheetsScreen;
 	private readonly AiAssistantScreen _aiAssistantScreen;
+	private readonly FrozenTimesheetAccessScreen _frozenTimesheetAccessScreen;
 
 	public ManagerMenuScreen(
 		ResourceDashboardScreen resourceDashboardScreen,
 		AllocateResourceScreen allocateResourceScreen,
 		MyProjectsScreen myProjectsScreen,
 		TeamTimesheetsScreen teamTimesheetsScreen,
-		AiAssistantScreen aiAssistantScreen)
+		AiAssistantScreen aiAssistantScreen,
+		FrozenTimesheetAccessScreen frozenTimesheetAccessScreen)
 	{
 		_resourceDashboardScreen = resourceDashboardScreen;
 		_allocateResourceScreen = allocateResourceScreen;
 		_myProjectsScreen = myProjectsScreen;
 		_teamTimesheetsScreen = teamTimesheetsScreen;
 		_aiAssistantScreen = aiAssistantScreen;
+		_frozenTimesheetAccessScreen = frozenTimesheetAccessScreen;
 	}
 
 	public async Task ShowAsync()
@@ -37,7 +40,8 @@ public class ManagerMenuScreen
 			Console.WriteLine("  3. My Projects");
 			Console.WriteLine("  4. Timesheets");
 			Console.WriteLine("  5. AI Assistant");
-			Console.WriteLine("  6. Logout");
+			Console.WriteLine("  6. Frozen Timesheet Access");
+			Console.WriteLine("  7. Logout");
 			Console.WriteLine();
 			Console.Write("Enter option: ");
 
@@ -59,6 +63,9 @@ public class ManagerMenuScreen
 					await _aiAssistantScreen.ShowAsync();
 					break;
 				case "6":
+					await _frozenTimesheetAccessScreen.ShowAsync();
+					break;
+				case "7":
 					SessionStore.Clear();
 					running = false;
 					break;

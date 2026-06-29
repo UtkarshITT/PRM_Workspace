@@ -32,7 +32,7 @@ public class SystemConfigServiceTests : IDisposable
 		_repository = new SystemConfigRepository(_context, dataProtectionProvider: _dataProtectionProvider);
 		_service = new SystemConfigService(
 			_repository,
-			new AuditLogRepository(_context),
+			new AuditService(new AuditLogRepository(_context)),
 			_dataProtectionProvider);
 	}
 

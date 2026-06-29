@@ -32,7 +32,8 @@ public class TimesheetServiceTests : IDisposable
 			new ActivityTagRepository(_context),
 			new SystemConfigRepository(_context),
 			new ResourceProfileRepository(_context),
-			new ProjectRepository(_context));
+			new ProjectRepository(_context),
+			new AuditService(new AuditLogRepository(_context)));
 	}
 
 	[Fact]

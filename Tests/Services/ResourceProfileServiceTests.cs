@@ -30,7 +30,7 @@ public class ResourceProfileServiceTests : IDisposable
 			new SkillRepository(_context),
 			new AllocationRepository(_context),
 			new TimesheetRepository(_context),
-			new AuditLogRepository(_context));
+			new AuditService(new AuditLogRepository(_context)));
 	}
 
 	[Fact]
@@ -105,6 +105,31 @@ public class ResourceProfileServiceTests : IDisposable
 	}
 
 	[Fact]
+	public async Task RestoreTimesheetAccessAsync_ForNonTeamMember_ThrowsNotFoundException()
+	{
+		var (resourceProfile, _) = await SeedResourceProfileWithAllocationAsync();
+		resourceProfile.IsTimesheetFrozen = true;
+		resourceProfile.ManagerId = 999;
+		await _context.SaveChangesAsync();
+
+		var act = () => _resourceProfileService.RestoreTimesheetAccessAsync(resourceProfile.Id, managerUserId: 1);
+
+		await act.Should().ThrowAsync<NotFoundException>()
+			.WithMessage("*not found on your team*");
+	}
+
+	[Fact]
+	public async Task RestoreTimesheetAccessAsync_WhenNotFrozen_ThrowsValidationException()
+	{
+		var (resourceProfile, _) = await SeedResourceProfileWithAllocationAsync();
+
+		var act = () => _resourceProfileService.RestoreTimesheetAccessAsync(resourceProfile.Id, managerUserId: 1);
+
+		await act.Should().ThrowAsync<ValidationException>()
+			.WithMessage("*not frozen*");
+	}
+
+	[Fact]
 	public async Task UpdateSkillProficiencyAsync_WithAssignedSkill_UpdatesLevel()
 	{
 		var (resourceProfile, _) = await SeedResourceProfileWithAllocationAsync();
@@ -113,7 +138,8 @@ public class ResourceProfileServiceTests : IDisposable
 		var result = await _resourceProfileService.UpdateSkillProficiencyAsync(
 			resourceProfile.Id,
 			skill.Id,
-			new UpdateSkillProficiencyDto { ProficiencyLevel = ProficiencyLevels.Advanced });
+			new UpdateSkillProficiencyDto { ProficiencyLevel = ProficiencyLevels.Advanced },
+			actorUserId: 1);
 
 		var updatedSkill = await _context.ResourceProfileSkills.FindAsync(resourceProfile.Id, skill.Id);
 		updatedSkill!.ProficiencyLevel.Should().Be(ProficiencyLevels.Advanced);
@@ -129,7 +155,8 @@ public class ResourceProfileServiceTests : IDisposable
 		var act = () => _resourceProfileService.UpdateSkillProficiencyAsync(
 			resourceProfile.Id,
 			skillId: 999,
-			new UpdateSkillProficiencyDto { ProficiencyLevel = ProficiencyLevels.Intermediate });
+			new UpdateSkillProficiencyDto { ProficiencyLevel = ProficiencyLevels.Intermediate },
+			actorUserId: 1);
 
 		await act.Should().ThrowAsync<NotFoundException>()
 			.WithMessage("*not assigned*");

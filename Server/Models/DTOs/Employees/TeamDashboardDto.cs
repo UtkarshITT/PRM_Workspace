@@ -12,6 +12,8 @@ public class TeamBenchMemberDto
 	public string FullName { get; set; } = string.Empty;
 	public string? Department { get; set; }
 	public IReadOnlyList<string> Skills { get; set; } = [];
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 }
 
 public class TeamActiveMemberDto
@@ -20,4 +22,6 @@ public class TeamActiveMemberDto
 	public string FullName { get; set; } = string.Empty;
 	public decimal CurrentUtilizationPercent { get; set; }
 	public decimal AvailabilityPercent { get; set; }
+	public bool IsTimesheetFrozen { get; set; }
+	public DateTime? TimesheetFrozenAt { get; set; }
 }

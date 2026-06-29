@@ -15,7 +15,7 @@ public class AllocationServiceTests
 	private readonly Mock<IResourceProfileRepository> _resourceProfileRepository = new();
 	private readonly Mock<IProjectRepository> _projectRepository = new();
 	private readonly Mock<ISystemConfigRepository> _systemConfigRepository = new();
-	private readonly Mock<IAuditLogRepository> _auditLogRepository = new();
+	private readonly Mock<IAuditService> _auditService = new();
 	private readonly AllocationService _allocationService;
 
 	public AllocationServiceTests()
@@ -25,7 +25,7 @@ public class AllocationServiceTests
 			_resourceProfileRepository.Object,
 			_projectRepository.Object,
 			_systemConfigRepository.Object,
-			_auditLogRepository.Object);
+			_auditService.Object);
 	}
 
 	[Fact]
@@ -114,8 +114,14 @@ public class AllocationServiceTests
 		allocation.ResourceProfile.EmploymentStatus.Should().Be("BENCH");
 		allocation.AllocationStatus.Should().Be("ENDED");
 		_allocationRepository.Verify(repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-		_auditLogRepository.Verify(repository => repository.WriteAsync(
-			It.Is<AuditLog>(auditLog => auditLog.EntityId == allocation.Id && auditLog.ActionType == "END"),
+		_auditService.Verify(service => service.LogAsync(
+			managerId,
+			"END",
+			"PROJECT_ALLOCATIONS",
+			allocation.Id,
+			It.IsAny<string?>(),
+			It.IsAny<string?>(),
+			It.IsAny<string?>(),
 			It.IsAny<CancellationToken>()), Times.Once);
 	}
 
@@ -233,8 +239,16 @@ public class AllocationServiceTests
 		_allocationRepository
 			.Setup(repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()))
 			.Returns(Task.CompletedTask);
-		_auditLogRepository
-			.Setup(repository => repository.WriteAsync(It.IsAny<AuditLog>(), It.IsAny<CancellationToken>()))
+		_auditService
+			.Setup(service => service.LogAsync(
+				It.IsAny<long>(),
+				It.IsAny<string>(),
+				It.IsAny<string>(),
+				It.IsAny<long>(),
+				It.IsAny<string?>(),
+				It.IsAny<string?>(),
+				It.IsAny<string?>(),
+				It.IsAny<CancellationToken>()))
 			.Returns(Task.CompletedTask);
 
 		return (managerId, allocation);

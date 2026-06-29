@@ -9,19 +9,22 @@ public class AdminMenuScreen
 	private readonly ManageProjectsScreen _manageProjectsScreen;
 	private readonly ViewAllocationsScreen _viewAllocationsScreen;
 	private readonly SystemConfigScreen _systemConfigScreen;
+	private readonly AuditLogsScreen _auditLogsScreen;
 
 	public AdminMenuScreen(
 		ManageUsersScreen manageUsersScreen,
 		ManageEmployeesScreen manageEmployeesScreen,
 		ManageProjectsScreen manageProjectsScreen,
 		ViewAllocationsScreen viewAllocationsScreen,
-		SystemConfigScreen systemConfigScreen)
+		SystemConfigScreen systemConfigScreen,
+		AuditLogsScreen auditLogsScreen)
 	{
 		_manageUsersScreen = manageUsersScreen;
 		_manageEmployeesScreen = manageEmployeesScreen;
 		_manageProjectsScreen = manageProjectsScreen;
 		_viewAllocationsScreen = viewAllocationsScreen;
 		_systemConfigScreen = systemConfigScreen;
+		_auditLogsScreen = auditLogsScreen;
 	}
 
 	public async Task ShowAsync()
@@ -37,7 +40,8 @@ public class AdminMenuScreen
 			Console.WriteLine("  3. View All Allocations");
 			Console.WriteLine("  4. Manage Users & Roles");
 			Console.WriteLine("  5. System Configuration");
-			Console.WriteLine("  6. Logout");
+			Console.WriteLine("  6. Audit Logs");
+			Console.WriteLine("  7. Logout");
 			Console.WriteLine();
 			Console.Write("Enter option: ");
 
@@ -59,6 +63,9 @@ public class AdminMenuScreen
 					await _systemConfigScreen.ShowAsync();
 					break;
 				case "6":
+					await _auditLogsScreen.ShowAsync();
+					break;
+				case "7":
 					SessionStore.Clear();
 					running = false;
 					break;

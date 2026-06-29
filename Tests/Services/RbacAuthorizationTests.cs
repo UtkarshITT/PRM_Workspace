@@ -107,6 +107,26 @@ public class RbacAuthorizationTests : IAsyncLifetime
 		response.StatusCode.Should().Be(HttpStatusCode.OK);
 	}
 
+	[Fact]
+	public async Task AuditLogsEndpoint_WithAdminRole_ReturnsOk()
+	{
+		using var request = CreateRequest(HttpMethod.Get, "/api/audit-logs", Roles.Admin);
+
+		var response = await _client.SendAsync(request);
+
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+	}
+
+	[Fact]
+	public async Task AuditLogsEndpoint_WithManagerRole_ReturnsForbidden()
+	{
+		using var request = CreateRequest(HttpMethod.Get, "/api/audit-logs", Roles.Manager);
+
+		var response = await _client.SendAsync(request);
+
+		response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+	}
+
 	public async Task InitializeAsync()
 	{
 		_host = await new HostBuilder()
@@ -204,6 +224,7 @@ public class RbacAuthorizationTests : IAsyncLifetime
 		services.AddSingleton(Mock.Of<IResourceProfileService>());
 		services.AddSingleton(Mock.Of<ITimesheetService>());
 		services.AddSingleton(Mock.Of<ISystemConfigService>());
+		services.AddSingleton(Mock.Of<IAuditService>());
 		services.AddSingleton(Mock.Of<INotificationLogService>());
 	}
 

@@ -26,7 +26,7 @@ public class UserServiceTests : IDisposable
 		_userService = new UserService(
 			new UserRepository(_context),
 			new ResourceProfileRepository(_context),
-			new AuditLogRepository(_context));
+			new AuditService(new AuditLogRepository(_context)));
 	}
 
 	[Fact]

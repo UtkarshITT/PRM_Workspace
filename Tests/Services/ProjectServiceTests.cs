@@ -15,6 +15,7 @@ public class ProjectServiceTests
 	private readonly Mock<IUserRepository> _userRepository = new();
 	private readonly Mock<ITimesheetRepository> _timesheetRepository = new();
 	private readonly Mock<ISystemConfigRepository> _systemConfigRepository = new();
+	private readonly Mock<IAuditService> _auditService = new();
 	private readonly ProjectService _projectService;
 
 	public ProjectServiceTests()
@@ -23,7 +24,8 @@ public class ProjectServiceTests
 			_projectRepository.Object,
 			_userRepository.Object,
 			_timesheetRepository.Object,
-			_systemConfigRepository.Object);
+			_systemConfigRepository.Object,
+			_auditService.Object);
 		_systemConfigRepository
 			.Setup(repository => repository.GetValueByKeyAsync(SystemConfigKeys.MaxWeeklyHours, It.IsAny<CancellationToken>()))
 			.ReturnsAsync("40");
@@ -49,7 +51,7 @@ public class ProjectServiceTests
 			ProjectStatus = ProjectStatuses.Active,
 			ManagerUserId = managerId,
 			TotalStoryPoints = 120
-		});
+		}, actorUserId: 1);
 
 		result.ProjectId.Should().BeGreaterThan(0);
 		result.ProjectCode.Should().Be($"PRJ-{result.ProjectId:D6}");
@@ -67,7 +69,7 @@ public class ProjectServiceTests
 			DueDate = new DateOnly(2027, 1, 1),
 			StoryPoints = 10,
 			SortOrder = 1
-		});
+		}, actorUserId: 1);
 
 		await act.Should().ThrowAsync<ValidationException>()
 			.WithMessage("*between*");
@@ -164,7 +166,7 @@ public class ProjectServiceTests
 			DueDate = new DateOnly(2026, 4, 15),
 			StoryPoints = 40,
 			SortOrder = 1
-		});
+		}, actorUserId: 1);
 
 		result.MilestoneTitle.Should().Be("Backend API");
 		result.MilestoneStatus.Should().Be(MilestoneStatuses.NotStarted);

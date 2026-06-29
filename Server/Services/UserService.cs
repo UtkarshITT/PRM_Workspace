@@ -11,7 +11,7 @@ public interface IUserService
 	Task<UserCreatedDto> CreateUserAccountAsync(CreateUserDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<UserListItemDto>> GetAllUsersAsync(CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<RolePermissionDto>> GetRolePermissionsAsync(CancellationToken cancellationToken = default);
-	Task ResetPasswordAsync(long userId, ResetPasswordDto dto, CancellationToken cancellationToken = default);
+	Task ResetPasswordAsync(long userId, ResetPasswordDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task UpdateRoleAsync(long userId, UpdateUserRoleDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task DeactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default);
 	Task ReactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default);
@@ -21,16 +21,16 @@ public class UserService : IUserService
 {
 	private readonly IUserRepository _userRepository;
 	private readonly IResourceProfileRepository _resourceProfileRepository;
-	private readonly IAuditLogRepository _auditLogRepository;
+	private readonly IAuditService _auditService;
 
 	public UserService(
 		IUserRepository userRepository,
 		IResourceProfileRepository resourceProfileRepository,
-		IAuditLogRepository auditLogRepository)
+		IAuditService auditService)
 	{
 		_userRepository = userRepository;
 		_resourceProfileRepository = resourceProfileRepository;
-		_auditLogRepository = auditLogRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<UserCreatedDto> CreateUserAccountAsync(
@@ -72,15 +72,14 @@ public class UserService : IUserService
 			UpdatedAt = now
 		}, cancellationToken);
 
-		await _auditLogRepository.WriteAsync(new AuditLog
-		{
-			ActorUserId = actorUserId,
-			EntityName = "USERS",
-			EntityId = user.Id,
-			ActionType = "CREATE",
-			NewValues = $"{{\"username\":\"{user.Username}\",\"role\":\"{user.Role}\"}}",
-			CreatedAt = now
-		}, cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"CREATE",
+			"USERS",
+			user.Id,
+			"User account created",
+			newValues: $"{{\"username\":\"{user.Username}\",\"role\":\"{user.Role}\"}}",
+			cancellationToken: cancellationToken);
 
 		return new UserCreatedDto
 		{
@@ -151,7 +150,11 @@ public class UserService : IUserService
 		return Task.FromResult(rolePermissions);
 	}
 
-	public async Task ResetPasswordAsync(long userId, ResetPasswordDto dto, CancellationToken cancellationToken = default)
+	public async Task ResetPasswordAsync(
+		long userId,
+		ResetPasswordDto dto,
+		long actorUserId,
+		CancellationToken cancellationToken = default)
 	{
 		var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
 
@@ -164,6 +167,13 @@ public class UserService : IUserService
 		user.ForcePasswordChange = true;
 		user.UpdatedAt = DateTime.UtcNow;
 		await _userRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"RESET_PASSWORD",
+			"USERS",
+			user.Id,
+			"Password reset by admin",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task UpdateRoleAsync(
@@ -194,16 +204,15 @@ public class UserService : IUserService
 		user.UpdatedAt = DateTime.UtcNow;
 
 		await _userRepository.SaveChangesAsync(cancellationToken);
-		await _auditLogRepository.WriteAsync(new AuditLog
-		{
-			ActorUserId = actorUserId,
-			EntityName = "USERS",
-			EntityId = user.Id,
-			ActionType = "UPDATE_ROLE",
-			OldValues = $"{{\"role\":\"{oldRole}\"}}",
-			NewValues = $"{{\"role\":\"{user.Role}\"}}",
-			CreatedAt = DateTime.UtcNow
-		}, cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE_ROLE",
+			"USERS",
+			user.Id,
+			"User role updated",
+			oldValues: $"{{\"role\":\"{oldRole}\"}}",
+			newValues: $"{{\"role\":\"{user.Role}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task DeactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default)
@@ -231,6 +240,13 @@ public class UserService : IUserService
 		}
 
 		await _userRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"DEACTIVATE",
+			"USERS",
+			user.Id,
+			"User account deactivated",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task ReactivateUserAsync(long userId, long actorUserId, CancellationToken cancellationToken = default)
@@ -258,5 +274,12 @@ public class UserService : IUserService
 		}
 
 		await _userRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"REACTIVATE",
+			"USERS",
+			user.Id,
+			"User account reactivated",
+			cancellationToken: cancellationToken);
 	}
 }

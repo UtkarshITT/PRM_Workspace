@@ -60,7 +60,7 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_createProjectValidator, dto, cancellationToken);
-		var result = await _projectService.CreateProjectAsync(dto, cancellationToken);
+		var result = await _projectService.CreateProjectAsync(dto, User.GetUserId(), cancellationToken);
 		return StatusCode(StatusCodes.Status201Created, ApiResponse<ProjectCreatedDto>.Ok(result, "Project created."));
 	}
 
@@ -81,7 +81,7 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_updateProjectValidator, dto, cancellationToken);
-		await _projectService.UpdateProjectAsync(id, dto, cancellationToken);
+		await _projectService.UpdateProjectAsync(id, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Project updated."));
 	}
 
@@ -103,7 +103,7 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_createMilestoneValidator, dto, cancellationToken);
-		var milestone = await _projectService.AddMilestoneAsync(id, dto, cancellationToken);
+		var milestone = await _projectService.AddMilestoneAsync(id, dto, User.GetUserId(), cancellationToken);
 		return StatusCode(StatusCodes.Status201Created, ApiResponse<MilestoneListItemDto>.Ok(milestone, "Milestone added."));
 	}
 
@@ -116,7 +116,7 @@ public class ProjectController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_updateMilestoneStatusValidator, dto, cancellationToken);
-		await _projectService.UpdateMilestoneStatusAsync(id, milestoneId, dto, cancellationToken);
+		await _projectService.UpdateMilestoneStatusAsync(id, milestoneId, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Milestone updated."));
 	}
 }

@@ -33,20 +33,20 @@ public class AllocationService : IAllocationService
 	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IProjectRepository _projectRepository;
 	private readonly ISystemConfigRepository _systemConfigRepository;
-	private readonly IAuditLogRepository _auditLogRepository;
+	private readonly IAuditService _auditService;
 
 	public AllocationService(
 		IAllocationRepository allocationRepository,
 		IResourceProfileRepository resourceProfileRepository,
 		IProjectRepository projectRepository,
 		ISystemConfigRepository systemConfigRepository,
-		IAuditLogRepository auditLogRepository)
+		IAuditService auditService)
 	{
 		_allocationRepository = allocationRepository;
 		_resourceProfileRepository = resourceProfileRepository;
 		_projectRepository = projectRepository;
 		_systemConfigRepository = systemConfigRepository;
-		_auditLogRepository = auditLogRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<IReadOnlyList<AllocationListItemDto>> GetAllAllocationsAsync(
@@ -140,6 +140,14 @@ public class AllocationService : IAllocationService
 		resourceProfile.UpdatedAt = now;
 
 		await _allocationRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			managerUserId,
+			"CREATE",
+			"PROJECT_ALLOCATIONS",
+			allocation.Id,
+			"Resource allocated to project",
+			newValues: $"{{\"resourceProfileId\":{allocation.ResourceProfileId},\"projectId\":{allocation.ProjectId},\"allocationPercentage\":{allocation.AllocationPercentage}}}",
+			cancellationToken: cancellationToken);
 
 		return new AllocationCreatedDto
 		{
@@ -189,15 +197,14 @@ public class AllocationService : IAllocationService
 
 		await _allocationRepository.SaveChangesAsync(cancellationToken);
 
-		await _auditLogRepository.WriteAsync(new AuditLog
-		{
-			ActorUserId = managerUserId,
-			EntityName = "PROJECT_ALLOCATIONS",
-			EntityId = allocationId,
-			ActionType = "END",
-			NewValues = $"{{\"resourceProfileId\":{allocation.ResourceProfileId},\"endDate\":\"{today:yyyy-MM-dd}\"}}",
-			CreatedAt = now
-		}, cancellationToken);
+		await _auditService.LogAsync(
+			managerUserId,
+			"END",
+			"PROJECT_ALLOCATIONS",
+			allocationId,
+			"Allocation ended",
+			newValues: $"{{\"resourceProfileId\":{allocation.ResourceProfileId},\"endDate\":\"{today:yyyy-MM-dd}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<EmployeeAllocationsResponseDto> GetMyAllocationsAsync(

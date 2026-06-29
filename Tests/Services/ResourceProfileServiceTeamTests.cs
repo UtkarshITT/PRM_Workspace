@@ -28,7 +28,7 @@ public class ResourceProfileServiceTeamTests : IDisposable
 			new SkillRepository(_context),
 			new AllocationRepository(_context),
 			new TimesheetRepository(_context),
-			new AuditLogRepository(_context));
+			new AuditService(new AuditLogRepository(_context)));
 	}
 
 	[Fact]

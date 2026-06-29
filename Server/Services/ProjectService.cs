@@ -9,12 +9,12 @@ namespace PRM.Server.Services.Interfaces;
 
 public interface IProjectService
 {
-	Task<ProjectCreatedDto> CreateProjectAsync(CreateProjectDto dto, CancellationToken cancellationToken = default);
+	Task<ProjectCreatedDto> CreateProjectAsync(CreateProjectDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<ProjectListItemDto>> GetAllProjectsAsync(CancellationToken cancellationToken = default);
-	Task UpdateProjectAsync(long projectId, UpdateProjectDto dto, CancellationToken cancellationToken = default);
+	Task UpdateProjectAsync(long projectId, UpdateProjectDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<MilestoneListItemDto>> GetMilestonesAsync(long projectId, CancellationToken cancellationToken = default);
-	Task<MilestoneListItemDto> AddMilestoneAsync(long projectId, CreateMilestoneDto dto, CancellationToken cancellationToken = default);
-	Task UpdateMilestoneStatusAsync(long projectId, long milestoneId, UpdateMilestoneStatusDto dto, CancellationToken cancellationToken = default);
+	Task<MilestoneListItemDto> AddMilestoneAsync(long projectId, CreateMilestoneDto dto, long actorUserId, CancellationToken cancellationToken = default);
+	Task UpdateMilestoneStatusAsync(long projectId, long milestoneId, UpdateMilestoneStatusDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<ManagerProjectListItemDto>> GetMyProjectsAsync(
 		long managerUserId,
 		CancellationToken cancellationToken = default);
@@ -33,21 +33,25 @@ public class ProjectService : IProjectService
 	private readonly IUserRepository _userRepository;
 	private readonly ITimesheetRepository _timesheetRepository;
 	private readonly ISystemConfigRepository _systemConfigRepository;
+	private readonly IAuditService _auditService;
 
 	public ProjectService(
 		IProjectRepository projectRepository,
 		IUserRepository userRepository,
 		ITimesheetRepository timesheetRepository,
-		ISystemConfigRepository systemConfigRepository)
+		ISystemConfigRepository systemConfigRepository,
+		IAuditService auditService)
 	{
 		_projectRepository = projectRepository;
 		_userRepository = userRepository;
 		_timesheetRepository = timesheetRepository;
 		_systemConfigRepository = systemConfigRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<ProjectCreatedDto> CreateProjectAsync(
 		CreateProjectDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		ValidateProjectDates(dto.StartDate, dto.EndDate, allowPastStartDate: false);
@@ -72,6 +76,14 @@ public class ProjectService : IProjectService
 		await _projectRepository.AddAsync(project, cancellationToken);
 		project.ProjectCode = $"PRJ-{project.Id:D6}";
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"CREATE",
+			"PROJECTS",
+			project.Id,
+			"Project created",
+			newValues: $"{{\"projectName\":\"{project.ProjectName}\",\"managerUserId\":{project.ManagerUserId}}}",
+			cancellationToken: cancellationToken);
 
 		return new ProjectCreatedDto
 		{
@@ -89,6 +101,7 @@ public class ProjectService : IProjectService
 	public async Task UpdateProjectAsync(
 		long projectId,
 		UpdateProjectDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
@@ -102,6 +115,7 @@ public class ProjectService : IProjectService
 		ValidateProjectDates(dto.StartDate, dto.EndDate, allowPastStartDate: dto.StartDate == project.StartDate);
 		ValidateMilestonesWithinProjectDates(project.Milestones, dto.StartDate, dto.EndDate);
 
+		var oldValues = $"{{\"projectName\":\"{project.ProjectName}\",\"status\":\"{project.ProjectStatus}\"}}";
 		project.ProjectName = dto.ProjectName;
 		project.Description = dto.Description;
 		project.StartDate = dto.StartDate;
@@ -112,6 +126,15 @@ public class ProjectService : IProjectService
 		project.UpdatedAt = DateTime.UtcNow;
 
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE",
+			"PROJECTS",
+			project.Id,
+			"Project updated",
+			oldValues: oldValues,
+			newValues: $"{{\"projectName\":\"{project.ProjectName}\",\"status\":\"{project.ProjectStatus}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<MilestoneListItemDto>> GetMilestonesAsync(
@@ -126,6 +149,7 @@ public class ProjectService : IProjectService
 	public async Task<MilestoneListItemDto> AddMilestoneAsync(
 		long projectId,
 		CreateMilestoneDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
@@ -151,6 +175,14 @@ public class ProjectService : IProjectService
 		};
 
 		await _projectRepository.AddMilestoneAsync(milestone, cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"ADD_MILESTONE",
+			"PROJECT_MILESTONES",
+			milestone.Id,
+			$"Milestone added to project {projectId}",
+			newValues: $"{{\"projectId\":{projectId},\"milestoneTitle\":\"{milestone.MilestoneTitle}\"}}",
+			cancellationToken: cancellationToken);
 		return MapMilestone(milestone);
 	}
 
@@ -158,6 +190,7 @@ public class ProjectService : IProjectService
 		long projectId,
 		long milestoneId,
 		UpdateMilestoneStatusDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		await EnsureProjectExistsAsync(projectId, cancellationToken);
@@ -169,6 +202,7 @@ public class ProjectService : IProjectService
 			throw new NotFoundException($"Milestone {milestoneId} was not found for project {projectId}.");
 		}
 
+		var oldStatus = milestone.MilestoneStatus;
 		milestone.MilestoneStatus = dto.MilestoneStatus;
 		milestone.UpdatedAt = DateTime.UtcNow;
 		milestone.CompletedAt = dto.MilestoneStatus == MilestoneStatuses.Done
@@ -176,6 +210,15 @@ public class ProjectService : IProjectService
 			: null;
 
 		await _projectRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE_MILESTONE_STATUS",
+			"PROJECT_MILESTONES",
+			milestone.Id,
+			$"Milestone status updated for project {projectId}",
+			oldValues: $"{{\"status\":\"{oldStatus}\"}}",
+			newValues: $"{{\"status\":\"{milestone.MilestoneStatus}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<ManagerProjectListItemDto>> GetMyProjectsAsync(

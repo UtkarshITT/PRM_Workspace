@@ -46,6 +46,7 @@ public class TimesheetService : ITimesheetService
 	private readonly ISystemConfigRepository _systemConfigRepository;
 	private readonly IResourceProfileRepository _resourceProfileRepository;
 	private readonly IProjectRepository _projectRepository;
+	private readonly IAuditService _auditService;
 
 	public TimesheetService(
 		ITimesheetRepository timesheetRepository,
@@ -53,7 +54,8 @@ public class TimesheetService : ITimesheetService
 		IActivityTagRepository activityTagRepository,
 		ISystemConfigRepository systemConfigRepository,
 		IResourceProfileRepository resourceProfileRepository,
-		IProjectRepository projectRepository)
+		IProjectRepository projectRepository,
+		IAuditService auditService)
 	{
 		_timesheetRepository = timesheetRepository;
 		_allocationRepository = allocationRepository;
@@ -61,6 +63,7 @@ public class TimesheetService : ITimesheetService
 		_systemConfigRepository = systemConfigRepository;
 		_resourceProfileRepository = resourceProfileRepository;
 		_projectRepository = projectRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<TimesheetSubmittedDto> SubmitTimesheetAsync(
@@ -185,6 +188,14 @@ public class TimesheetService : ITimesheetService
 		}
 
 		await _timesheetRepository.AddSubmittedAsync(timesheet, cancellationToken);
+		await _auditService.LogAsync(
+			resourceProfile.UserId,
+			"SUBMIT",
+			"TIMESHEETS",
+			timesheet.Id,
+			"Timesheet submitted",
+			newValues: $"{{\"resourceProfileId\":{employeeId},\"weekStartDate\":\"{weekStart:yyyy-MM-dd}\",\"totalHours\":{totalHours}}}",
+			cancellationToken: cancellationToken);
 
 		return new TimesheetSubmittedDto
 		{

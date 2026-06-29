@@ -101,6 +101,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ITimesheetService, TimesheetService>();
 builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IComplianceNotificationService, ComplianceNotificationService>();
 builder.Services.AddScoped<INotificationLogService, NotificationLogService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();

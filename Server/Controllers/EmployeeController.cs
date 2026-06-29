@@ -69,7 +69,7 @@ public class EmployeeController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_updateEmployeeValidator, dto, cancellationToken);
-		await _resourceProfileService.UpdateEmployeeAsync(id, dto, cancellationToken);
+		await _resourceProfileService.UpdateEmployeeAsync(id, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Employee updated."));
 	}
 
@@ -89,7 +89,7 @@ public class EmployeeController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_addSkillValidator, dto, cancellationToken);
-		var skills = await _resourceProfileService.AddSkillAsync(id, dto, cancellationToken);
+		var skills = await _resourceProfileService.AddSkillAsync(id, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<IReadOnlyList<EmployeeSkillDto>>.Ok(skills, "Skill added."));
 	}
 
@@ -102,7 +102,7 @@ public class EmployeeController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_updateSkillProficiencyValidator, dto, cancellationToken);
-		var skills = await _resourceProfileService.UpdateSkillProficiencyAsync(id, skillId, dto, cancellationToken);
+		var skills = await _resourceProfileService.UpdateSkillProficiencyAsync(id, skillId, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<IReadOnlyList<EmployeeSkillDto>>.Ok(skills, "Skill proficiency updated."));
 	}
 
@@ -113,7 +113,7 @@ public class EmployeeController : ControllerBase
 		long skillId,
 		CancellationToken cancellationToken)
 	{
-		await _resourceProfileService.RemoveSkillAsync(id, skillId, cancellationToken);
+		await _resourceProfileService.RemoveSkillAsync(id, skillId, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Skill removed."));
 	}
 
@@ -125,7 +125,7 @@ public class EmployeeController : ControllerBase
 		CancellationToken cancellationToken)
 	{
 		await ValidationHelper.ValidateAsync(_assignManagerValidator, dto, cancellationToken);
-		await _resourceProfileService.AssignManagerAsync(id, dto, cancellationToken);
+		await _resourceProfileService.AssignManagerAsync(id, dto, User.GetUserId(), cancellationToken);
 		return Ok(ApiResponse<object>.Ok(new { }, "Manager assigned."));
 	}
 

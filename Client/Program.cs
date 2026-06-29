@@ -29,13 +29,15 @@ var app = new AppStarter(
 		new ManageEmployeesScreen(adminClient),
 		new ManageProjectsScreen(adminClient),
 		new ViewAllocationsScreen(adminClient),
-		new SystemConfigScreen(adminClient)),
+		new SystemConfigScreen(adminClient),
+		new AuditLogsScreen(adminClient)),
 	new ManagerMenuScreen(
 		new ResourceDashboardScreen(managerClient),
 		allocateResourceScreen,
 		new MyProjectsScreen(managerClient, aiClient),
 		new TeamTimesheetsScreen(managerClient),
-		new AiAssistantScreen(aiClient, managerClient, allocateResourceScreen)),
+		new AiAssistantScreen(aiClient, managerClient, allocateResourceScreen),
+		new FrozenTimesheetAccessScreen(managerClient)),
 	new EmployeeMenuScreen(
 		employeeClient,
 		new SubmitTimesheetScreen(employeeClient),

@@ -29,16 +29,16 @@ public class SystemConfigService : ISystemConfigService
 	];
 
 	private readonly ISystemConfigRepository _systemConfigRepository;
-	private readonly IAuditLogRepository _auditLogRepository;
+	private readonly IAuditService _auditService;
 	private readonly IDataProtector _llmApiKeyProtector;
 
 	public SystemConfigService(
 		ISystemConfigRepository systemConfigRepository,
-		IAuditLogRepository auditLogRepository,
+		IAuditService auditService,
 		IDataProtectionProvider dataProtectionProvider)
 	{
 		_systemConfigRepository = systemConfigRepository;
-		_auditLogRepository = auditLogRepository;
+		_auditService = auditService;
 		_llmApiKeyProtector = dataProtectionProvider.CreateProtector(LlmApiKeyProtectorPurpose);
 	}
 
@@ -108,14 +108,14 @@ public class SystemConfigService : ISystemConfigService
 		if (changedKeys.Count > 0)
 		{
 			await _systemConfigRepository.SaveChangesAsync(cancellationToken);
-			await _auditLogRepository.WriteAsync(new AuditLog
-			{
-				ActorUserId = adminUserId,
-				EntityName = "SYSTEM_CONFIGURATIONS",
-				ActionType = "UPDATE",
-				NewValues = BuildAuditJson(changedKeys),
-				CreatedAt = now
-			}, cancellationToken);
+			await _auditService.LogAsync(
+				adminUserId,
+				"UPDATE",
+				"SYSTEM_CONFIGURATIONS",
+				0,
+				"System configuration updated",
+				newValues: BuildAuditJson(changedKeys),
+				cancellationToken: cancellationToken);
 		}
 
 		return ToDtos(configs.Values);

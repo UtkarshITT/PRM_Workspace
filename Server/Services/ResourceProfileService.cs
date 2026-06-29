@@ -13,16 +13,17 @@ public interface IResourceProfileService
 		string? status,
 		string? department,
 		CancellationToken cancellationToken = default);
-	Task UpdateEmployeeAsync(long resourceProfileId, UpdateEmployeeDto dto, CancellationToken cancellationToken = default);
+	Task UpdateEmployeeAsync(long resourceProfileId, UpdateEmployeeDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task DeactivateEmployeeAsync(long resourceProfileId, long actorUserId, CancellationToken cancellationToken = default);
-	Task<IReadOnlyList<EmployeeSkillDto>> AddSkillAsync(long resourceProfileId, AddSkillDto dto, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<EmployeeSkillDto>> AddSkillAsync(long resourceProfileId, AddSkillDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<EmployeeSkillDto>> UpdateSkillProficiencyAsync(
 		long resourceProfileId,
 		long skillId,
 		UpdateSkillProficiencyDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default);
-	Task RemoveSkillAsync(long resourceProfileId, long skillId, CancellationToken cancellationToken = default);
-	Task AssignManagerAsync(long resourceProfileId, AssignManagerDto dto, CancellationToken cancellationToken = default);
+	Task RemoveSkillAsync(long resourceProfileId, long skillId, long actorUserId, CancellationToken cancellationToken = default);
+	Task AssignManagerAsync(long resourceProfileId, AssignManagerDto dto, long actorUserId, CancellationToken cancellationToken = default);
 	Task<TeamDashboardDto> GetTeamDashboardAsync(long managerUserId, CancellationToken cancellationToken = default);
 	Task<TeamMemberDetailDto> GetTeamMemberDetailAsync(long resourceProfileId, long managerUserId, CancellationToken cancellationToken = default);
 	Task RestoreTimesheetAccessAsync(long resourceProfileId, long managerUserId, CancellationToken cancellationToken = default);
@@ -35,7 +36,7 @@ public class ResourceProfileService : IResourceProfileService
 	private readonly ISkillRepository _skillRepository;
 	private readonly IAllocationRepository _allocationRepository;
 	private readonly ITimesheetRepository _timesheetRepository;
-	private readonly IAuditLogRepository _auditLogRepository;
+	private readonly IAuditService _auditService;
 
 	public ResourceProfileService(
 		IResourceProfileRepository resourceProfileRepository,
@@ -43,14 +44,14 @@ public class ResourceProfileService : IResourceProfileService
 		ISkillRepository skillRepository,
 		IAllocationRepository allocationRepository,
 		ITimesheetRepository timesheetRepository,
-		IAuditLogRepository auditLogRepository)
+		IAuditService auditService)
 	{
 		_resourceProfileRepository = resourceProfileRepository;
 		_userRepository = userRepository;
 		_skillRepository = skillRepository;
 		_allocationRepository = allocationRepository;
 		_timesheetRepository = timesheetRepository;
-		_auditLogRepository = auditLogRepository;
+		_auditService = auditService;
 	}
 
 	public async Task<IReadOnlyList<EmployeeListItemDto>> GetAllEmployeesAsync(
@@ -63,7 +64,11 @@ public class ResourceProfileService : IResourceProfileService
 		return resourceProfiles.Select(MapListItem).ToList();
 	}
 
-	public async Task UpdateEmployeeAsync(long resourceProfileId, UpdateEmployeeDto dto, CancellationToken cancellationToken = default)
+	public async Task UpdateEmployeeAsync(
+		long resourceProfileId,
+		UpdateEmployeeDto dto,
+		long actorUserId,
+		CancellationToken cancellationToken = default)
 	{
 		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(resourceProfileId, cancellationToken);
 
@@ -79,6 +84,14 @@ public class ResourceProfileService : IResourceProfileService
 		resourceProfile.User.UpdatedAt = DateTime.UtcNow;
 
 		await _resourceProfileRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE",
+			"RESOURCE_PROFILES",
+			resourceProfileId,
+			"Employee profile updated",
+			newValues: $"{{\"fullName\":\"{dto.FullName}\",\"department\":\"{dto.Department}\",\"designation\":\"{dto.Designation}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task DeactivateEmployeeAsync(long resourceProfileId, long actorUserId, CancellationToken cancellationToken = default)
@@ -115,20 +128,20 @@ public class ResourceProfileService : IResourceProfileService
 		}
 
 		await _resourceProfileRepository.SaveChangesAsync(cancellationToken);
-		await _auditLogRepository.WriteAsync(new AuditLog
-		{
-			ActorUserId = actorUserId,
-			EntityName = "RESOURCE_PROFILES",
-			EntityId = resourceProfileId,
-			ActionType = "DEACTIVATE",
-			NewValues = $"{{\"endedAllocationIds\":[{string.Join(",", endedAllocationIds)}]}}",
-			CreatedAt = now
-		}, cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"DEACTIVATE",
+			"RESOURCE_PROFILES",
+			resourceProfileId,
+			"Employee deactivated",
+			newValues: $"{{\"endedAllocationIds\":[{string.Join(",", endedAllocationIds)}]}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<EmployeeSkillDto>> AddSkillAsync(
 		long resourceProfileId,
 		AddSkillDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(resourceProfileId, cancellationToken);
@@ -166,6 +179,15 @@ public class ResourceProfileService : IResourceProfileService
 			CreatedAt = DateTime.UtcNow
 		}, cancellationToken);
 
+		await _auditService.LogAsync(
+			actorUserId,
+			"ADD_SKILL",
+			"RESOURCE_PROFILE_SKILLS",
+			resourceProfileId,
+			$"Added skill {skill.SkillName}",
+			newValues: $"{{\"skillId\":{skill.Id},\"proficiencyLevel\":\"{dto.ProficiencyLevel}\"}}",
+			cancellationToken: cancellationToken);
+
 		var skills = await _skillRepository.GetResourceProfileSkillsAsync(resourceProfileId, cancellationToken);
 		return skills.Select(MapSkill).ToList();
 	}
@@ -174,6 +196,7 @@ public class ResourceProfileService : IResourceProfileService
 		long resourceProfileId,
 		long skillId,
 		UpdateSkillProficiencyDto dto,
+		long actorUserId,
 		CancellationToken cancellationToken = default)
 	{
 		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(resourceProfileId, cancellationToken);
@@ -193,14 +216,28 @@ public class ResourceProfileService : IResourceProfileService
 			throw new NotFoundException($"Skill {skillId} is not assigned to employee {resourceProfileId}.");
 		}
 
+		var oldProficiency = resourceProfileSkill.ProficiencyLevel;
 		resourceProfileSkill.ProficiencyLevel = dto.ProficiencyLevel;
 		await _skillRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"UPDATE_SKILL_PROFICIENCY",
+			"RESOURCE_PROFILE_SKILLS",
+			resourceProfileId,
+			$"Updated skill {skillId} proficiency",
+			oldValues: $"{{\"skillId\":{skillId},\"proficiencyLevel\":\"{oldProficiency}\"}}",
+			newValues: $"{{\"skillId\":{skillId},\"proficiencyLevel\":\"{dto.ProficiencyLevel}\"}}",
+			cancellationToken: cancellationToken);
 
 		var skills = await _skillRepository.GetResourceProfileSkillsAsync(resourceProfileId, cancellationToken);
 		return skills.Select(MapSkill).ToList();
 	}
 
-	public async Task RemoveSkillAsync(long resourceProfileId, long skillId, CancellationToken cancellationToken = default)
+	public async Task RemoveSkillAsync(
+		long resourceProfileId,
+		long skillId,
+		long actorUserId,
+		CancellationToken cancellationToken = default)
 	{
 		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(resourceProfileId, cancellationToken);
 
@@ -217,6 +254,14 @@ public class ResourceProfileService : IResourceProfileService
 		}
 
 		await _skillRepository.RemoveResourceProfileSkillAsync(resourceProfileSkill, cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"REMOVE_SKILL",
+			"RESOURCE_PROFILE_SKILLS",
+			resourceProfileId,
+			$"Removed skill {skillId}",
+			oldValues: $"{{\"skillId\":{skillId},\"proficiencyLevel\":\"{resourceProfileSkill.ProficiencyLevel}\"}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task<TeamDashboardDto> GetTeamDashboardAsync(
@@ -239,7 +284,9 @@ public class ResourceProfileService : IResourceProfileService
 					Id = resourceProfile.Id,
 					FullName = resourceProfile.User.FullName,
 					Department = resourceProfile.Department,
-					Skills = resourceProfile.ResourceProfileSkills.Select(skill => skill.Skill.SkillName).ToList()
+					Skills = resourceProfile.ResourceProfileSkills.Select(skill => skill.Skill.SkillName).ToList(),
+					IsTimesheetFrozen = resourceProfile.IsTimesheetFrozen,
+					TimesheetFrozenAt = resourceProfile.TimesheetFrozenAt
 				});
 			}
 			else
@@ -249,7 +296,9 @@ public class ResourceProfileService : IResourceProfileService
 					Id = resourceProfile.Id,
 					FullName = resourceProfile.User.FullName,
 					CurrentUtilizationPercent = utilization,
-					AvailabilityPercent = 100 - utilization
+					AvailabilityPercent = 100 - utilization,
+					IsTimesheetFrozen = resourceProfile.IsTimesheetFrozen,
+					TimesheetFrozenAt = resourceProfile.TimesheetFrozenAt
 				});
 			}
 		}
@@ -307,7 +356,11 @@ public class ResourceProfileService : IResourceProfileService
 		};
 	}
 
-	public async Task AssignManagerAsync(long resourceProfileId, AssignManagerDto dto, CancellationToken cancellationToken = default)
+	public async Task AssignManagerAsync(
+		long resourceProfileId,
+		AssignManagerDto dto,
+		long actorUserId,
+		CancellationToken cancellationToken = default)
 	{
 		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(resourceProfileId, cancellationToken);
 
@@ -333,9 +386,19 @@ public class ResourceProfileService : IResourceProfileService
 			throw new ValidationException("An employee cannot be their own manager.");
 		}
 
+		var oldManagerId = resourceProfile.ManagerId;
 		resourceProfile.ManagerId = dto.ManagerUserId;
 		resourceProfile.UpdatedAt = DateTime.UtcNow;
 		await _resourceProfileRepository.SaveChangesAsync(cancellationToken);
+		await _auditService.LogAsync(
+			actorUserId,
+			"ASSIGN_MANAGER",
+			"RESOURCE_PROFILES",
+			resourceProfileId,
+			"Manager assigned",
+			oldValues: $"{{\"managerId\":{oldManagerId?.ToString() ?? "null"}}}",
+			newValues: $"{{\"managerId\":{dto.ManagerUserId}}}",
+			cancellationToken: cancellationToken);
 	}
 
 	public async Task RestoreTimesheetAccessAsync(
@@ -366,15 +429,14 @@ public class ResourceProfileService : IResourceProfileService
 		await _timesheetRepository.ClearComplianceFreezeAsync(resourceProfileId, cancellationToken);
 		await _resourceProfileRepository.SaveChangesAsync(cancellationToken);
 		await _timesheetRepository.SaveChangesAsync(cancellationToken);
-		await _auditLogRepository.WriteAsync(new AuditLog
-		{
-			ActorUserId = managerUserId,
-			EntityName = "RESOURCE_PROFILES",
-			EntityId = resourceProfileId,
-			ActionType = "RESTORE_TIMESHEET_ACCESS",
-			NewValues = "{\"is_timesheet_frozen\":false}",
-			CreatedAt = now
-		}, cancellationToken);
+		await _auditService.LogAsync(
+			managerUserId,
+			"RESTORE_TIMESHEET_ACCESS",
+			"RESOURCE_PROFILES",
+			resourceProfileId,
+			"Timesheet access restored",
+			newValues: "{\"is_timesheet_frozen\":false}",
+			cancellationToken: cancellationToken);
 	}
 
 	private static EmployeeListItemDto MapListItem(ResourceProfile resourceProfile)
