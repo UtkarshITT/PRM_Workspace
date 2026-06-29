@@ -27,14 +27,14 @@ public class ResourceDashboardScreen
 
 		var dashboard = response.Data;
 
-		Console.WriteLine($"ON BENCH  ({dashboard.BenchMembers.Count} employees available)");
+		Console.WriteLine($"ON BENCH  ({dashboard.BenchMembers.Count} employees fully available)");
 		Console.WriteLine(new string('-', 70));
-		Console.WriteLine($"{"ID",-6}{"Name",-20}{"Department",-14}Skills");
+		Console.WriteLine($"{"ID",-6}{"Name",-20}{"Department",-14}{"Alloc %",-10}{"Availability",-14}Skills");
 
 		foreach (var member in dashboard.BenchMembers)
 		{
 			var skills = member.Skills.Count == 0 ? "-" : string.Join(", ", member.Skills);
-			Console.WriteLine($"{member.Id,-6}{member.FullName,-20}{member.Department ?? "-",-14}{skills}");
+			Console.WriteLine($"{member.Id,-6}{member.FullName,-20}{member.Department ?? "-",-14}{"0%",-10}{"FULLY",-14}{skills}");
 		}
 
 		Console.WriteLine();
@@ -44,7 +44,7 @@ public class ResourceDashboardScreen
 
 		foreach (var member in dashboard.ActiveMembers)
 		{
-			var availability = member.AvailabilityPercent == 0 ? "FULL" : $"{member.AvailabilityPercent:0}% free";
+			var availability = member.AvailabilityPercent == 0 ? "NONE" : $"{member.AvailabilityPercent:0}% free";
 			Console.WriteLine($"{member.Id,-6}{member.FullName,-20}{member.CurrentUtilizationPercent,6:0}%   {availability}");
 		}
 
