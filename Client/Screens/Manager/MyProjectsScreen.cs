@@ -39,8 +39,8 @@ public class MyProjectsScreen
 			}
 			else
 			{
-				Console.WriteLine($"{"#",3}  {"Project",-16} {"End Date",-11} Health");
-				Console.WriteLine(new string('─', 46));
+				Console.WriteLine($"{"#",3}  {"Project ID",-10}{"Project",-20} {"End Date",-11} Health");
+				Console.WriteLine(new string('─', 62));
 				for (var index = 0; index < projects.Count; index++)
 				{
 					var project = projects[index];
@@ -48,7 +48,7 @@ public class MyProjectsScreen
 					var healthLabel = HealthStatusHelper.ToDisplayLabel(project.HealthStatus);
 					var icon = HealthStatusHelper.ToDisplayIcon(project.HealthStatus);
 					Console.WriteLine(
-						$"{index + 1,2}.  {project.ProjectName,-16} {DateFormatHelper.FormatDisplay(endDate),-11} {icon} {healthLabel}");
+						$"{index + 1,2}.  {project.Id,-10}{project.ProjectName,-20} {DateFormatHelper.FormatDisplay(endDate),-11} {icon} {healthLabel}");
 				}
 			}
 
