@@ -91,13 +91,13 @@ public class ResourceDashboardScreen
 		}
 		else
 		{
-			Console.WriteLine($"  {"Project",-18}{"%",-6}{"From",-12}To");
+			Console.WriteLine($"  {"Alloc ID",-9}{"Project",-18}{"%",-6}{"From",-12}To");
 			foreach (var allocation in detail.ActiveAllocations)
 			{
 				var from = DateOnly.Parse(allocation.AllocationStartDate, CultureInfo.InvariantCulture);
 				var to = DateOnly.Parse(allocation.AllocationEndDate, CultureInfo.InvariantCulture);
 				Console.WriteLine(
-					$"  {allocation.ProjectName,-18}{allocation.AllocationPercentage,4:0}%  {DateFormatHelper.FormatDisplay(from),-12}{DateFormatHelper.FormatDisplay(to)}");
+					$"  {allocation.AllocationId,-9}{allocation.ProjectName,-18}{allocation.AllocationPercentage,4:0}%  {DateFormatHelper.FormatDisplay(from),-12}{DateFormatHelper.FormatDisplay(to)}");
 			}
 		}
 

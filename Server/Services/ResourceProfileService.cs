@@ -346,6 +346,7 @@ public class ResourceProfileService : IResourceProfileService
 				.Where(allocation => allocation.AllocationStatus == "ACTIVE")
 				.Select(allocation => new TeamMemberAllocationDto
 				{
+					AllocationId = allocation.Id,
 					ProjectName = allocation.Project.ProjectName,
 					AllocationPercentage = allocation.AllocationPercentage,
 					AllocationStartDate = allocation.AllocationStartDate,

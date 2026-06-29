@@ -42,6 +42,7 @@ public class TeamMemberDetail
 
 public class TeamMemberAllocation
 {
+	public long AllocationId { get; set; }
 	public string ProjectName { get; set; } = string.Empty;
 	public decimal AllocationPercentage { get; set; }
 	public string AllocationStartDate { get; set; } = string.Empty;

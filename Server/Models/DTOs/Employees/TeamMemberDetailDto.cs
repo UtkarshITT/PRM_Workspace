@@ -16,6 +16,7 @@ public class TeamMemberDetailDto
 
 public class TeamMemberAllocationDto
 {
+	public long AllocationId { get; set; }
 	public string ProjectName { get; set; } = string.Empty;
 	public decimal AllocationPercentage { get; set; }
 	public DateOnly AllocationStartDate { get; set; }
