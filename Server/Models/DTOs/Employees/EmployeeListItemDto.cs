@@ -14,4 +14,5 @@ public class EmployeeListItemDto
 	public long? ManagerId { get; set; }
 	public string? ManagerName { get; set; }
 	public IReadOnlyList<string> Skills { get; set; } = [];
+	public IReadOnlyList<EmployeeSkillDto> SkillDetails { get; set; } = [];
 }

@@ -210,6 +210,12 @@ public class ManageEmployeesScreen
 		{
 			Console.Clear();
 			ConsoleHelper.WriteHeader($"Skills — Employee {employeeId}");
+
+			if (!await DisplayEmployeeSkillsAsync(employeeId))
+			{
+				return;
+			}
+
 			Console.WriteLine("  1. Add Skill");
 			Console.WriteLine("  2. Update Proficiency Level");
 			Console.WriteLine("  3. Remove Skill");
@@ -232,6 +238,45 @@ public class ManageEmployeesScreen
 					break;
 			}
 		}
+	}
+
+	private async Task<bool> DisplayEmployeeSkillsAsync(long employeeId)
+	{
+		var response = await _adminClient.GetEmployeesAsync();
+		if (!response.Success)
+		{
+			WriteApiError(response);
+			return false;
+		}
+
+		var employee = response.Data?.FirstOrDefault(item => item.Id == employeeId);
+		if (employee == null)
+		{
+			ConsoleHelper.WriteError($"Employee with ID {employeeId} was not found.");
+			ConsoleHelper.PressEnterToContinue();
+			return false;
+		}
+
+		Console.WriteLine($"{employee.FullName} | {employee.Department ?? "-"} | {employee.EmploymentStatus}");
+		Console.WriteLine();
+
+		if (employee.SkillDetails.Count == 0)
+		{
+			Console.WriteLine("No skills assigned yet.");
+			Console.WriteLine();
+			return true;
+		}
+
+		Console.WriteLine($"{"Skill ID",-10}{"Skill",-24}{"Category",-14}{"Proficiency"}");
+		Console.WriteLine(new string('-', 62));
+
+		foreach (var skill in employee.SkillDetails.OrderBy(item => item.SkillId))
+		{
+			Console.WriteLine($"{skill.SkillId,-10}{skill.SkillName,-24}{skill.Category,-14}{skill.ProficiencyLevel}");
+		}
+
+		Console.WriteLine();
+		return true;
 	}
 
 	private async Task AddSkillAsync(long employeeId)

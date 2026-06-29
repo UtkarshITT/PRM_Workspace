@@ -456,6 +456,9 @@ public class ResourceProfileService : IResourceProfileService
 			ManagerName = resourceProfile.Manager?.FullName,
 			Skills = resourceProfile.ResourceProfileSkills
 				.Select(resourceProfileSkill => resourceProfileSkill.Skill.SkillName)
+				.ToList(),
+			SkillDetails = resourceProfile.ResourceProfileSkills
+				.Select(MapSkill)
 				.ToList()
 		};
 	}

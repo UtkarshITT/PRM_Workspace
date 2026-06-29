@@ -56,6 +56,7 @@ public class EmployeeListItem
 	public long? ManagerId { get; set; }
 	public string? ManagerName { get; set; }
 	public List<string> Skills { get; set; } = [];
+	public List<EmployeeSkillItem> SkillDetails { get; set; } = [];
 }
 
 public class UpdateEmployeeRequest
