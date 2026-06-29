@@ -83,7 +83,7 @@ public class ResourceDashboardScreen
 		Console.WriteLine($"Timesheet Lock : {(detail.IsTimesheetFrozen ? "FROZEN" : "Active")}");
 		Console.WriteLine($"Profile Skills : {string.Join(", ", detail.Skills)}");
 		Console.WriteLine();
-		Console.WriteLine("Active Allocations:");
+		Console.WriteLine("Current / Upcoming Allocations:");
 
 		if (detail.ActiveAllocations.Count == 0)
 		{
@@ -91,13 +91,15 @@ public class ResourceDashboardScreen
 		}
 		else
 		{
-			Console.WriteLine($"  {"Alloc ID",-9}{"Project",-18}{"%",-6}{"From",-12}To");
+			var today = DateOnly.FromDateTime(DateTime.Today);
+			Console.WriteLine($"  {"Alloc ID",-9}{"Project",-18}{"%",-6}{"From",-12}{"To",-12}State");
 			foreach (var allocation in detail.ActiveAllocations)
 			{
 				var from = DateOnly.Parse(allocation.AllocationStartDate, CultureInfo.InvariantCulture);
 				var to = DateOnly.Parse(allocation.AllocationEndDate, CultureInfo.InvariantCulture);
+				var state = from > today ? "Upcoming" : "Current";
 				Console.WriteLine(
-					$"  {allocation.AllocationId,-9}{allocation.ProjectName,-18}{allocation.AllocationPercentage,4:0}%  {DateFormatHelper.FormatDisplay(from),-12}{DateFormatHelper.FormatDisplay(to)}");
+					$"  {allocation.AllocationId,-9}{allocation.ProjectName,-18}{allocation.AllocationPercentage,4:0}%  {DateFormatHelper.FormatDisplay(from),-12}{DateFormatHelper.FormatDisplay(to),-12}{state}");
 			}
 		}
 
