@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using PRM.Server.Constants;
 using PRM.Server.Data;
+using PRM.Server.Exceptions;
+using PRM.Server.Models.DTOs.Employees;
 using PRM.Server.Models.Entities;
 using PRM.Server.Repositories;
 using PRM.Server.Services.Interfaces;
@@ -102,6 +104,37 @@ public class ResourceProfileServiceTests : IDisposable
 		(await _context.AuditLogs.AnyAsync(log => log.ActionType == "RESTORE_TIMESHEET_ACCESS")).Should().BeTrue();
 	}
 
+	[Fact]
+	public async Task UpdateSkillProficiencyAsync_WithAssignedSkill_UpdatesLevel()
+	{
+		var (resourceProfile, _) = await SeedResourceProfileWithAllocationAsync();
+		var skill = await SeedResourceProfileSkillAsync(resourceProfile.Id, ProficiencyLevels.Beginner);
+
+		var result = await _resourceProfileService.UpdateSkillProficiencyAsync(
+			resourceProfile.Id,
+			skill.Id,
+			new UpdateSkillProficiencyDto { ProficiencyLevel = ProficiencyLevels.Advanced });
+
+		var updatedSkill = await _context.ResourceProfileSkills.FindAsync(resourceProfile.Id, skill.Id);
+		updatedSkill!.ProficiencyLevel.Should().Be(ProficiencyLevels.Advanced);
+		result.Should().ContainSingle(item =>
+			item.SkillId == skill.Id && item.ProficiencyLevel == ProficiencyLevels.Advanced);
+	}
+
+	[Fact]
+	public async Task UpdateSkillProficiencyAsync_WithUnassignedSkill_ThrowsNotFoundException()
+	{
+		var (resourceProfile, _) = await SeedResourceProfileWithAllocationAsync();
+
+		var act = () => _resourceProfileService.UpdateSkillProficiencyAsync(
+			resourceProfile.Id,
+			skillId: 999,
+			new UpdateSkillProficiencyDto { ProficiencyLevel = ProficiencyLevels.Intermediate });
+
+		await act.Should().ThrowAsync<NotFoundException>()
+			.WithMessage("*not assigned*");
+	}
+
 	private async Task<(ResourceProfile resourceProfile, User user)> SeedResourceProfileWithAllocationAsync()
 	{
 		var now = DateTime.UtcNow;
@@ -181,6 +214,32 @@ public class ResourceProfileServiceTests : IDisposable
 
 		await _context.SaveChangesAsync();
 		return (resourceProfile, user);
+	}
+
+	private async Task<Skill> SeedResourceProfileSkillAsync(long resourceProfileId, string proficiencyLevel)
+	{
+		var now = DateTime.UtcNow;
+		var skill = new Skill
+		{
+			SkillName = "C#",
+			Category = SkillCategories.Backend,
+			IsActive = true,
+			CreatedAt = now
+		};
+
+		_context.Skills.Add(skill);
+		await _context.SaveChangesAsync();
+
+		_context.ResourceProfileSkills.Add(new ResourceProfileSkill
+		{
+			ResourceProfileId = resourceProfileId,
+			SkillId = skill.Id,
+			ProficiencyLevel = proficiencyLevel,
+			CreatedAt = now
+		});
+		await _context.SaveChangesAsync();
+
+		return skill;
 	}
 
 	private static User CreateUser(long id, string username, string role, DateTime now)

@@ -62,6 +62,15 @@ public class AdminClient
 	public Task<ApiResponse<List<EmployeeSkillItem>>> AddSkillAsync(long employeeId, AddSkillRequest request) =>
 		_restClient.PostAsync<List<EmployeeSkillItem>>($"/api/employees/{employeeId}/skills", request, requireAuth: true);
 
+	public Task<ApiResponse<List<EmployeeSkillItem>>> UpdateSkillProficiencyAsync(
+		long employeeId,
+		long skillId,
+		UpdateSkillProficiencyRequest request) =>
+		_restClient.PutAsync<List<EmployeeSkillItem>>(
+			$"/api/employees/{employeeId}/skills/{skillId}",
+			request,
+			requireAuth: true);
+
 	public Task<ApiResponse<object>> RemoveSkillAsync(long employeeId, long skillId) =>
 		_restClient.DeleteAsync<object>($"/api/employees/{employeeId}/skills/{skillId}", requireAuth: true);
 

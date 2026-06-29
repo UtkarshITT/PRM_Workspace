@@ -126,6 +126,26 @@ public class TimesheetServiceTests : IDisposable
 	}
 
 	[Fact]
+	public async Task GetRemindersAsync_WithLastWeekAllocationAndNoSubmission_ReturnsReminder()
+	{
+		var employeeId = await SeedEmployeeWithAllocationForLastWeekAsync();
+
+		var reminders = await _timesheetService.GetRemindersAsync(employeeId);
+
+		reminders.Messages.Should().ContainSingle(message => message.Contains("has not been submitted"));
+	}
+
+	[Fact]
+	public async Task GetRemindersAsync_WithBenchEmployee_ReturnsNoPendingReminder()
+	{
+		var employeeId = await SeedBenchEmployeeAsync();
+
+		var reminders = await _timesheetService.GetRemindersAsync(employeeId);
+
+		reminders.Messages.Should().BeEmpty();
+	}
+
+	[Fact]
 	public async Task SubmitTimesheetAsync_TotalHoursExceedMax_ThrowsValidationException()
 	{
 		var (employeeId, projectId, tagIds) = await SeedEmployeeWithAllocationAsync(allocationPercent: 100);
@@ -195,6 +215,53 @@ public class TimesheetServiceTests : IDisposable
 		var lastWeekStart = WeekHelper.GetLastCompletedWeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
 		var (employeeId, _, _) = await SeedEmployeeWithAllocationAsync(allocationWeek: lastWeekStart);
 		return employeeId;
+	}
+
+	private async Task<long> SeedBenchEmployeeAsync()
+	{
+		var now = DateTime.UtcNow;
+		var manager = new User
+		{
+			Username = "mgr",
+			Email = "mgr@test.com",
+			FullName = "Manager",
+			Role = Roles.Manager,
+			PasswordHash = "hash",
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		var employeeUser = new User
+		{
+			Username = "bench.emp",
+			Email = "bench.emp@test.com",
+			FullName = "Bench Employee",
+			Role = Roles.Employee,
+			PasswordHash = "hash",
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		_context.Users.AddRange(manager, employeeUser);
+		await _context.SaveChangesAsync();
+
+		var resourceProfile = new ResourceProfile
+		{
+			UserId = employeeUser.Id,
+			ManagerId = manager.Id,
+			ResourceProfileCode = "EMP-000001",
+			EmploymentStatus = "BENCH",
+			IsActive = true,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
+
+		_context.ResourceProfiles.Add(resourceProfile);
+		await _context.SaveChangesAsync();
+
+		return resourceProfile.Id;
 	}
 
 	private async Task<(long EmployeeId, long ProjectId, IReadOnlyList<long> TagIds)> SeedEmployeeWithAllocationAsync(

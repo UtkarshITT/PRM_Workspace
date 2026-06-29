@@ -231,10 +231,16 @@ public class TimesheetService : ITimesheetService
 	{
 		var today = DateOnly.FromDateTime(DateTime.UtcNow);
 		var lastCompletedWeek = WeekHelper.GetLastCompletedWeekStart(today);
+		var lastCompletedWeekEnd = WeekHelper.GetWeekEnd(lastCompletedWeek);
 		var messages = new List<string>();
+		var weekAllocations = await GetWeekAllocationsAsync(
+			employeeId,
+			lastCompletedWeek,
+			lastCompletedWeekEnd,
+			cancellationToken);
 
 		var hasTimesheet = await _timesheetRepository.ExistsForWeekAsync(employeeId, lastCompletedWeek, cancellationToken);
-		if (!hasTimesheet)
+		if (weekAllocations.Count > 0 && !hasTimesheet)
 		{
 			messages.Add(
 				$"Reminder: Timesheet for week {lastCompletedWeek:dd-MMM-yyyy} has not been submitted.");

@@ -54,8 +54,8 @@ public class ComplianceNotificationServiceTests : IDisposable
 
 		var resourceProfile = await _context.ResourceProfiles.FindAsync(resourceProfileId);
 		resourceProfile!.IsTimesheetFrozen.Should().BeTrue();
-		(await _context.NotificationLogs.CountAsync(log => log.NotificationType == "TIMESHEET_REMINDER")).Should().Be(2);
-		(await _context.NotificationLogs.CountAsync(log => log.NotificationType == "TIMESHEET_FREEZE")).Should().Be(2);
+		(await CountConsoleSentAsync("TIMESHEET_REMINDER")).Should().Be(2);
+		(await CountConsoleSentAsync("TIMESHEET_FREEZE")).Should().Be(2);
 	}
 
 	[Fact]
@@ -69,7 +69,15 @@ public class ComplianceNotificationServiceTests : IDisposable
 
 		firstRun.Should().Be(1);
 		secondRun.Should().Be(0);
-		(await _context.NotificationLogs.CountAsync(log => log.NotificationType == "PROJECT_AT_RISK")).Should().Be(1);
+		(await CountConsoleSentAsync("PROJECT_AT_RISK")).Should().Be(1);
+	}
+
+	private Task<int> CountConsoleSentAsync(string notificationType)
+	{
+		return _context.NotificationLogs.CountAsync(log =>
+			log.NotificationType == notificationType
+			&& log.DeliveryChannel == EmailNotificationService.ChannelConsole
+			&& log.Status == "SENT");
 	}
 
 	private async Task<long> SeedAllocatedResourceProfileWithMissedTimesheetAsync()

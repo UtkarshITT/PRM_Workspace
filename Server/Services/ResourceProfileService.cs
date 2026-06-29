@@ -16,6 +16,11 @@ public interface IResourceProfileService
 	Task UpdateEmployeeAsync(long resourceProfileId, UpdateEmployeeDto dto, CancellationToken cancellationToken = default);
 	Task DeactivateEmployeeAsync(long resourceProfileId, long actorUserId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<EmployeeSkillDto>> AddSkillAsync(long resourceProfileId, AddSkillDto dto, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<EmployeeSkillDto>> UpdateSkillProficiencyAsync(
+		long resourceProfileId,
+		long skillId,
+		UpdateSkillProficiencyDto dto,
+		CancellationToken cancellationToken = default);
 	Task RemoveSkillAsync(long resourceProfileId, long skillId, CancellationToken cancellationToken = default);
 	Task AssignManagerAsync(long resourceProfileId, AssignManagerDto dto, CancellationToken cancellationToken = default);
 	Task<TeamDashboardDto> GetTeamDashboardAsync(long managerUserId, CancellationToken cancellationToken = default);
@@ -160,6 +165,36 @@ public class ResourceProfileService : IResourceProfileService
 			ProficiencyLevel = dto.ProficiencyLevel,
 			CreatedAt = DateTime.UtcNow
 		}, cancellationToken);
+
+		var skills = await _skillRepository.GetResourceProfileSkillsAsync(resourceProfileId, cancellationToken);
+		return skills.Select(MapSkill).ToList();
+	}
+
+	public async Task<IReadOnlyList<EmployeeSkillDto>> UpdateSkillProficiencyAsync(
+		long resourceProfileId,
+		long skillId,
+		UpdateSkillProficiencyDto dto,
+		CancellationToken cancellationToken = default)
+	{
+		var resourceProfile = await _resourceProfileRepository.GetByIdAsync(resourceProfileId, cancellationToken);
+
+		if (resourceProfile == null || !resourceProfile.IsActive)
+		{
+			throw new NotFoundException($"Employee with ID {resourceProfileId} was not found.");
+		}
+
+		var resourceProfileSkill = await _skillRepository.GetResourceProfileSkillAsync(
+			resourceProfileId,
+			skillId,
+			cancellationToken);
+
+		if (resourceProfileSkill == null)
+		{
+			throw new NotFoundException($"Skill {skillId} is not assigned to employee {resourceProfileId}.");
+		}
+
+		resourceProfileSkill.ProficiencyLevel = dto.ProficiencyLevel;
+		await _skillRepository.SaveChangesAsync(cancellationToken);
 
 		var skills = await _skillRepository.GetResourceProfileSkillsAsync(resourceProfileId, cancellationToken);
 		return skills.Select(MapSkill).ToList();

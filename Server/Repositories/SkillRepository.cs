@@ -69,4 +69,9 @@ public class SkillRepository : ISkillRepository
 			.Where(skill => skillIds.Contains(skill.Id))
 			.ToDictionaryAsync(skill => skill.Id, skill => skill.SkillName, cancellationToken);
 	}
+
+	public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+	{
+		return _context.SaveChangesAsync(cancellationToken);
+	}
 }

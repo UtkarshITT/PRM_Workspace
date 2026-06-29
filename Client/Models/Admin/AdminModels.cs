@@ -72,6 +72,11 @@ public class AddSkillRequest
 	public string ProficiencyLevel { get; set; } = string.Empty;
 }
 
+public class UpdateSkillProficiencyRequest
+{
+	public string ProficiencyLevel { get; set; } = string.Empty;
+}
+
 public class EmployeeSkillItem
 {
 	public long SkillId { get; set; }

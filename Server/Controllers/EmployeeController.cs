@@ -17,17 +17,20 @@ public class EmployeeController : ControllerBase
 	private readonly IResourceProfileService _resourceProfileService;
 	private readonly IValidator<UpdateEmployeeDto> _updateEmployeeValidator;
 	private readonly IValidator<AddSkillDto> _addSkillValidator;
+	private readonly IValidator<UpdateSkillProficiencyDto> _updateSkillProficiencyValidator;
 	private readonly IValidator<AssignManagerDto> _assignManagerValidator;
 
 	public EmployeeController(
 		IResourceProfileService resourceProfileService,
 		IValidator<UpdateEmployeeDto> updateEmployeeValidator,
 		IValidator<AddSkillDto> addSkillValidator,
+		IValidator<UpdateSkillProficiencyDto> updateSkillProficiencyValidator,
 		IValidator<AssignManagerDto> assignManagerValidator)
 	{
 		_resourceProfileService = resourceProfileService;
 		_updateEmployeeValidator = updateEmployeeValidator;
 		_addSkillValidator = addSkillValidator;
+		_updateSkillProficiencyValidator = updateSkillProficiencyValidator;
 		_assignManagerValidator = assignManagerValidator;
 	}
 
@@ -88,6 +91,19 @@ public class EmployeeController : ControllerBase
 		await ValidationHelper.ValidateAsync(_addSkillValidator, dto, cancellationToken);
 		var skills = await _resourceProfileService.AddSkillAsync(id, dto, cancellationToken);
 		return Ok(ApiResponse<IReadOnlyList<EmployeeSkillDto>>.Ok(skills, "Skill added."));
+	}
+
+	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+	[HttpPut("{id:long}/skills/{skillId:long}")]
+	public async Task<ActionResult<ApiResponse<IReadOnlyList<EmployeeSkillDto>>>> UpdateSkillProficiency(
+		long id,
+		long skillId,
+		[FromBody] UpdateSkillProficiencyDto dto,
+		CancellationToken cancellationToken)
+	{
+		await ValidationHelper.ValidateAsync(_updateSkillProficiencyValidator, dto, cancellationToken);
+		var skills = await _resourceProfileService.UpdateSkillProficiencyAsync(id, skillId, dto, cancellationToken);
+		return Ok(ApiResponse<IReadOnlyList<EmployeeSkillDto>>.Ok(skills, "Skill proficiency updated."));
 	}
 
 	[Authorize(Policy = AuthorizationPolicies.AdminOnly)]

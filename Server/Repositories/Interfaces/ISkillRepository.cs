@@ -13,4 +13,5 @@ public interface ISkillRepository
 	Task<IReadOnlyDictionary<long, string>> GetNamesByIdsAsync(
 		IReadOnlyList<long> skillIds,
 		CancellationToken cancellationToken = default);
+	Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

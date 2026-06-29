@@ -220,8 +220,7 @@ public class ManageEmployeesScreen
 					await AddSkillAsync(employeeId);
 					break;
 				case "2":
-					ConsoleHelper.WriteError("Update proficiency is not available yet. Remove and re-add the skill with the new level.");
-					ConsoleHelper.PressEnterToContinue();
+					await UpdateSkillProficiencyAsync(employeeId);
 					break;
 				case "3":
 					await RemoveSkillAsync(employeeId);
@@ -254,6 +253,43 @@ public class ManageEmployeesScreen
 		if (response.Success)
 		{
 			ConsoleHelper.WriteSuccess("Skill added.");
+		}
+		else
+		{
+			WriteApiError(response);
+		}
+
+		ConsoleHelper.PressEnterToContinue();
+	}
+
+	private async Task UpdateSkillProficiencyAsync(long employeeId)
+	{
+		if (!long.TryParse(ConsoleHelper.ReadInput("Skill ID to update: "), out var skillId))
+		{
+			ConsoleHelper.WriteError("Invalid skill ID.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		var proficiency = PromptProficiency();
+		if (proficiency == null)
+		{
+			ConsoleHelper.WriteError("Invalid proficiency level.");
+			ConsoleHelper.PressEnterToContinue();
+			return;
+		}
+
+		var response = await _adminClient.UpdateSkillProficiencyAsync(
+			employeeId,
+			skillId,
+			new UpdateSkillProficiencyRequest
+			{
+				ProficiencyLevel = proficiency
+			});
+
+		if (response.Success)
+		{
+			ConsoleHelper.WriteSuccess("Skill proficiency updated.");
 		}
 		else
 		{
